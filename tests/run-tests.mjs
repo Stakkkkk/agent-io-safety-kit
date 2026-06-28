@@ -1,0 +1,233 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import { appendFile, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const deployScript = path.join(packageRoot, "scripts", "deploy.mjs");
+const runnerScript = path.join(packageRoot, "skills", "safe-shell-io", "scripts", "run-from-spec.mjs");
+const inspectScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "inspect-text.mjs");
+const transcodeScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "transcode-text.mjs");
+
+function digest(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+async function run(script, args, { cwd = packageRoot } = {}) {
+  const child = spawn(process.execPath, [script, ...args], {
+    cwd,
+    shell: false,
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const stdout = [];
+  const stderr = [];
+  child.stdout.on("data", (chunk) => stdout.push(chunk));
+  child.stderr.on("data", (chunk) => stderr.push(chunk));
+  const result = await new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", (code, signal) => resolve({ code, signal }));
+  });
+  return {
+    ...result,
+    stdout: Buffer.concat(stdout).toString("utf8"),
+    stderr: Buffer.concat(stderr).toString("utf8"),
+  };
+}
+
+function expectSuccess(result, label) {
+  assert.equal(result.signal, null, `${label}: unexpected signal ${result.signal}`);
+  assert.equal(result.code, 0, `${label}: ${result.stderr || result.stdout}`);
+}
+
+function expectFailure(result, label) {
+  assert.notEqual(result.code, 0, `${label}: command unexpectedly succeeded`);
+}
+
+async function testDeployment(tempRoot) {
+  const target = path.join(tempRoot, "project with spaces");
+  await mkdir(target, { recursive: true });
+  const entryPath = path.join(target, "AGENTS.md");
+  await writeFile(entryPath, Buffer.from("# Existing\r\n\r\nПривет\r\n", "utf8"));
+
+  const first = await run(deployScript, ["--target", target, "--entry", "AGENTS.md"]);
+  expectSuccess(first, "first deployment");
+  const firstEntry = await readFile(entryPath);
+  const firstText = firstEntry.toString("utf8");
+  assert.match(firstText, /agent-io-safety:begin/);
+  assert.match(firstText, /\.agent-io-safety\/RULE\.md/);
+  assert.equal(firstText.replaceAll("\r\n", "").includes("\n"), false, "entry EOL was not preserved");
+
+  const beforeSecond = digest(await readFile(entryPath));
+  const second = await run(deployScript, ["--target", target, "--entry", "AGENTS.md"]);
+  expectSuccess(second, "idempotent deployment");
+  assert.match(second.stdout, /UP-TO-DATE/);
+  assert.equal(digest(await readFile(entryPath)), beforeSecond, "idempotent deployment changed entry file");
+
+  const check = await run(deployScript, ["--target", target, "--entry", "AGENTS.md", "--check"]);
+  expectSuccess(check, "deployment check");
+
+  const customPath = path.join(target, ".agent-io-safety", "CUSTOM.md");
+  await writeFile(customPath, "unmanaged\n", "utf8");
+  const rulePath = path.join(target, ".agent-io-safety", "RULE.md");
+  await appendFile(rulePath, "\nlocal drift\n", "utf8");
+  const drift = await run(deployScript, ["--target", target, "--entry", "AGENTS.md"]);
+  expectFailure(drift, "drift protection");
+  assert.match(`${drift.stdout}${drift.stderr}`, /modified managed file/);
+
+  const repair = await run(deployScript, ["--target", target, "--entry", "AGENTS.md", "--force"]);
+  expectSuccess(repair, "forced repair");
+  assert.equal((await readFile(customPath, "utf8")), "unmanaged\n", "unknown destination file was changed");
+  expectSuccess(await run(deployScript, ["--target", target, "--entry", "AGENTS.md", "--check"]), "post-repair check");
+
+  const outsideRule = path.join(tempRoot, "outside-rule.md");
+  await writeFile(outsideRule, "outside\n", "utf8");
+  await rm(rulePath, { force: true });
+  let symlinkCreated = false;
+  try {
+    await symlink(outsideRule, rulePath, "file");
+    symlinkCreated = true;
+  } catch (error) {
+    if (!new Set(["EPERM", "EACCES", "ENOSYS"]).has(error.code)) throw error;
+  }
+  if (symlinkCreated) {
+    const symlinkAttack = await run(deployScript, ["--target", target, "--entry", "AGENTS.md", "--force"]);
+    expectFailure(symlinkAttack, "symlink write protection");
+    assert.match(`${symlinkAttack.stdout}${symlinkAttack.stderr}`, /symlink/);
+    assert.equal(await readFile(outsideRule, "utf8"), "outside\n", "symlink target was modified");
+    await rm(rulePath, { force: true });
+    expectSuccess(await run(deployScript, ["--target", target, "--entry", "AGENTS.md", "--force"]), "post-symlink repair");
+  }
+
+  const bomTarget = path.join(tempRoot, "bom-project");
+  const nestedEntry = path.join(bomTarget, ".github", "copilot-instructions.md");
+  await mkdir(path.dirname(nestedEntry), { recursive: true });
+  await writeFile(nestedEntry, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("# Existing\n", "utf8")]));
+  expectSuccess(
+    await run(deployScript, ["--target", bomTarget, "--entry", ".github/copilot-instructions.md"]),
+    "nested BOM deployment",
+  );
+  const nestedBytes = await readFile(nestedEntry);
+  assert.deepEqual([...nestedBytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], "UTF-8 BOM was not preserved");
+  assert.match(nestedBytes.subarray(3).toString("utf8"), /\.\.\/\.agent-io-safety\/RULE\.md/);
+}
+
+async function testRunner(tempRoot) {
+  const runnerRoot = path.join(tempRoot, "runner");
+  await mkdir(runnerRoot, { recursive: true });
+  const echoScript = path.join(runnerRoot, "echo.mjs");
+  await writeFile(
+    echoScript,
+    "const chunks=[];for await(const chunk of process.stdin)chunks.push(chunk);" +
+      "process.stdout.write(JSON.stringify({args:process.argv.slice(2),stdin:Buffer.concat(chunks).toString('utf8')}));\n",
+    "utf8",
+  );
+
+  const trickyArgs = [
+    "Денис: \"double\" and 'single'",
+    "$5 & 10% | `tick` \\ path",
+    "line 1\nline 2",
+    "space at end ",
+    "",
+  ];
+  const stdin = "stdin: кириллица, emoji 🧪, \"quotes\"\nsecond line\n";
+  const specPath = path.join(runnerRoot, "command.json");
+  await writeFile(specPath, `${JSON.stringify({
+    command: process.execPath,
+    args: ["echo.mjs", ...trickyArgs],
+    cwd: ".",
+    stdin,
+    stdoutEncoding: "utf8",
+    stderrEncoding: "utf8",
+  }, null, 2)}\n`, "utf8");
+
+  const result = await run(runnerScript, [specPath], { cwd: runnerRoot });
+  expectSuccess(result, "argv runner");
+  const payload = JSON.parse(result.stdout);
+  assert.deepEqual(payload.args, trickyArgs, "argv changed during execution");
+  assert.equal(payload.stdin, stdin, "stdin changed during execution");
+
+  const bomSpec = path.join(runnerRoot, "bom-command.json");
+  await writeFile(bomSpec, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("{}", "utf8")]));
+  const rejected = await run(runnerScript, [bomSpec], { cwd: runnerRoot });
+  expectFailure(rejected, "BOM spec rejection");
+  assert.match(rejected.stderr, /without BOM/);
+}
+
+async function testTextTools(tempRoot) {
+  const textRoot = path.join(tempRoot, "text");
+  await mkdir(textRoot, { recursive: true });
+  const good = path.join(textRoot, "good.txt");
+  const bom = path.join(textRoot, "bom.txt");
+  const utf16 = path.join(textRoot, "utf16.txt");
+  const utf16NoBomAscii = path.join(textRoot, "utf16-no-bom-ascii.txt");
+  const utf16NoBomCyrillic = path.join(textRoot, "utf16-no-bom-cyrillic.txt");
+  const psUnsafe = path.join(textRoot, "unsafe.ps1");
+  const psBom = path.join(textRoot, "safe.ps1");
+
+  await writeFile(good, "Привет\n", "utf8");
+  await writeFile(bom, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("Привет\r\n", "utf8")]));
+  await writeFile(utf16, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("Привет\r\n", "utf16le")]));
+  await writeFile(utf16NoBomAscii, Buffer.from("Hello\r\n", "utf16le"));
+  await writeFile(utf16NoBomCyrillic, Buffer.from("Привет\r\n", "utf16le"));
+  await writeFile(psUnsafe, "Write-Output 'Привет'\n", "utf8");
+  await writeFile(psBom, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("Write-Output 'Привет'\r\n", "utf8")]));
+
+  expectSuccess(await run(inspectScript, [good]), "valid UTF-8 inspection");
+  expectFailure(await run(inspectScript, ["--fail-on-bom", bom]), "BOM policy");
+  expectFailure(await run(inspectScript, [utf16]), "UTF-16 detection");
+  expectFailure(await run(inspectScript, [utf16NoBomAscii]), "UTF-16 without BOM ASCII detection");
+  expectFailure(await run(inspectScript, [utf16NoBomCyrillic]), "UTF-16 without BOM Cyrillic detection");
+  expectFailure(await run(inspectScript, ["--ps51-safe", psUnsafe]), "PowerShell 5.1 unsafe source");
+  expectSuccess(await run(inspectScript, ["--ps51-safe", psBom]), "PowerShell 5.1 BOM source");
+
+  const normalized = path.join(textRoot, "normalized.txt");
+  expectSuccess(
+    await run(transcodeScript, [
+      "--input", bom,
+      "--output", normalized,
+      "--source-encoding", "auto",
+      "--target-encoding", "utf8",
+      "--bom", "none",
+      "--eol", "lf",
+    ]),
+    "explicit transcode",
+  );
+  const normalizedBytes = await readFile(normalized);
+  assert.notDeepEqual([...normalizedBytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], "transcode retained BOM");
+  assert.equal(normalizedBytes.toString("utf8"), "Привет\n");
+}
+
+async function testCliHelp() {
+  expectSuccess(await run(deployScript, ["--help"]), "deploy help");
+  expectSuccess(await run(runnerScript, ["--help"]), "runner help");
+  expectSuccess(await run(inspectScript, ["--help"]), "inspect help");
+  expectSuccess(await run(transcodeScript, ["--help"]), "transcode help");
+}
+
+async function safeCleanup(tempRoot) {
+  const systemTemp = path.resolve(os.tmpdir());
+  const resolved = path.resolve(tempRoot);
+  const relative = path.relative(systemTemp, resolved);
+  assert.ok(relative && !relative.startsWith("..") && !path.isAbsolute(relative), "refusing unsafe temp cleanup");
+  assert.match(path.basename(resolved), /^agent-io-safety-tests-/, "refusing unexpected temp cleanup target");
+  await rm(resolved, { recursive: true, force: true });
+}
+
+const tempRoot = await mkdtemp(path.join(os.tmpdir(), "agent-io-safety-tests-"));
+try {
+  const bundleCheck = await run(inspectScript, ["--all-files", "--fail-on-bom", "--eol", "lf", "--ps51-safe", packageRoot]);
+  expectSuccess(bundleCheck, "bundle text policy");
+  await testCliHelp();
+  await testDeployment(tempRoot);
+  await testRunner(tempRoot);
+  await testTextTools(tempRoot);
+  process.stdout.write("ALL TESTS PASSED\n");
+} finally {
+  await safeCleanup(tempRoot);
+}
