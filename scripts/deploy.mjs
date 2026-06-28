@@ -17,24 +17,35 @@ function fail(message, code = 2) {
 function usage() {
   process.stderr.write(
     "usage: node deploy.mjs [--target dir] [--entry AGENTS.md] " +
-      "[--dest .agent-io-safety] [--dry-run|--check] [--force]\n",
+      "[--dest .agent-io-safety] [--dry-run|--check] [--force] [--fragment file]\n",
   );
 }
 
 function parseArgs(argv) {
-  const options = { target: ".", entry: "AGENTS.md", dest: ".agent-io-safety", dryRun: false, check: false, force: false };
+  const options = {
+    target: ".",
+    entry: "AGENTS.md",
+    dest: ".agent-io-safety",
+    dryRun: false,
+    check: false,
+    force: false,
+    fragment: undefined,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
     if (value === "--target") options.target = argv[++index];
     else if (value === "--entry") options.entry = argv[++index];
     else if (value === "--dest") options.dest = argv[++index];
+    else if (value === "--fragment") options.fragment = argv[++index];
     else if (value === "--dry-run") options.dryRun = true;
     else if (value === "--check") options.check = true;
     else if (value === "--force") options.force = true;
     else if (value === "--help" || value === "-h") options.help = true;
     else throw new Error(`unknown option: ${value}`);
   }
-  if (!options.target || !options.entry || !options.dest) throw new Error("path options require values");
+  if (!options.target || !options.entry || !options.dest || options.fragment === "") {
+    throw new Error("path options require values");
+  }
   if (options.dryRun && options.check) throw new Error("--dry-run and --check are mutually exclusive");
   if (options.check && options.force) throw new Error("--check and --force are mutually exclusive");
   return options;
@@ -118,6 +129,16 @@ function detectEol(text) {
 
 function normalizeLf(text) {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function selectFragment(entry) {
+  const normalized = toPosix(entry).toLowerCase();
+  const name = path.posix.basename(normalized);
+  if (normalized === ".github/copilot-instructions.md") return "copilot-instructions.md.fragment";
+  if (normalized.startsWith(".cursor/") || name === ".cursorrules" || name.endsWith(".mdc")) return "cursor-rules.fragment";
+  if (name === "claude.md") return "CLAUDE.md.fragment";
+  if (name === "gemini.md") return "GEMINI.md.fragment";
+  return "AGENTS.md.fragment";
 }
 
 function updateEntry(existingText, fragmentLf, eol) {
@@ -216,8 +237,12 @@ async function buildState(options) {
     else removals.push(destinationPath);
   }
 
+  const fragmentPath = options.fragment
+    ? path.resolve(packageRoot, options.fragment)
+    : path.join(packageRoot, "snippets", selectFragment(options.entry));
+  if (!isInsidePath(packageRoot, fragmentPath)) throw new Error("fragment must stay inside package root");
   const template = decodeUtf8(
-    await readFile(path.join(packageRoot, "snippets", "AGENTS.md.fragment")),
+    await readFile(fragmentPath),
     "entry fragment",
     { allowBom: false },
   ).text;

@@ -42,6 +42,14 @@ node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --check
 
 Код возврата ненулевой, если отсутствует врезка, отличаются управляемые файлы или версия устарела.
 
+Более подробная диагностика:
+
+```text
+node scripts/doctor.mjs --target <project-root> --entry AGENTS.md
+```
+
+`doctor` проверяет Node.js, наличие entry-файла, управляемые маркеры, `MANIFEST.json`, версию, SHA-256 управляемых файлов и базовую текстовую валидность установленной копии.
+
 ## Врезка
 
 Шаблон находится в `snippets/AGENTS.md.fragment`. Установщик заменяет `{{RULE_PATH}}` относительным путём от стартового файла к развёрнутому правилу.
@@ -66,11 +74,28 @@ node scripts/deploy.mjs --target <project-root> --entry GEMINI.md
 node scripts/deploy.mjs --target <project-root> --entry .github/copilot-instructions.md
 ```
 
+Установщик выбирает подходящий шаблон из `snippets/` для `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` и Cursor rule-файлов. При необходимости можно явно передать фрагмент:
+
+```text
+node scripts/deploy.mjs --target <project-root> --entry CLAUDE.md --fragment snippets/CLAUDE.md.fragment
+```
+
 Если платформа поддерживает нативные skills, каталог `.agent-io-safety/skills/` можно дополнительно подключить к её реестру. Это ускоряет автоматический trigger, но не является условием работы механизма.
+
+## Command spec schema
+
+Для command spec доступна JSON Schema:
+
+```text
+schemas/command-spec.schema.json
+```
+
+Её можно подключить в spec через поле `$schema`, чтобы редактор подсвечивал ошибки структуры до запуска `run-from-spec.mjs`.
 
 ## Обновление самого комплекта
 
 1. Изменить канонические правило, skills или скрипты.
 2. Запустить `node tests/run-tests.mjs`.
-3. Увеличить `VERSION`.
-4. Выполнить `--dry-run`, затем обычное развёртывание в нужных проектах.
+3. Запустить `node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .`.
+4. Увеличить `VERSION` и обновить `CHANGELOG.md`, если готовится релиз.
+5. Выполнить `--dry-run`, затем обычное развёртывание в нужных проектах.

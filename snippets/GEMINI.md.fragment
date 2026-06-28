@@ -1,0 +1,5 @@
+<!-- agent-io-safety:begin -->
+## Shell and text I/O safety
+
+Before the first operation that uses shell, reads or writes text, passes user-controlled data, paths, JSON/YAML/SQL/regex, non-ASCII characters, encodings, BOM, or line endings, read and follow [the central rule]({{RULE_PATH}}). Load the referenced skills before the matching operation. Do not fix quoting or mojibake by repeated trial and error.
+<!-- agent-io-safety:end -->

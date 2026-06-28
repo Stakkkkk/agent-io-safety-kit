@@ -10,9 +10,11 @@ import { fileURLToPath } from "node:url";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const deployScript = path.join(packageRoot, "scripts", "deploy.mjs");
+const doctorScript = path.join(packageRoot, "scripts", "doctor.mjs");
 const runnerScript = path.join(packageRoot, "skills", "safe-shell-io", "scripts", "run-from-spec.mjs");
 const inspectScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "inspect-text.mjs");
 const transcodeScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "transcode-text.mjs");
+const schemaPath = path.join(packageRoot, "schemas", "command-spec.schema.json");
 
 function digest(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
@@ -71,6 +73,7 @@ async function testDeployment(tempRoot) {
 
   const check = await run(deployScript, ["--target", target, "--entry", "AGENTS.md", "--check"]);
   expectSuccess(check, "deployment check");
+  expectSuccess(await run(doctorScript, ["--target", target, "--entry", "AGENTS.md"]), "doctor check");
 
   const customPath = path.join(target, ".agent-io-safety", "CUSTOM.md");
   await writeFile(customPath, "unmanaged\n", "utf8");
@@ -84,6 +87,7 @@ async function testDeployment(tempRoot) {
   expectSuccess(repair, "forced repair");
   assert.equal((await readFile(customPath, "utf8")), "unmanaged\n", "unknown destination file was changed");
   expectSuccess(await run(deployScript, ["--target", target, "--entry", "AGENTS.md", "--check"]), "post-repair check");
+  expectSuccess(await run(doctorScript, ["--target", target, "--entry", "AGENTS.md"]), "post-repair doctor check");
 
   const outsideRule = path.join(tempRoot, "outside-rule.md");
   await writeFile(outsideRule, "outside\n", "utf8");
@@ -115,6 +119,19 @@ async function testDeployment(tempRoot) {
   const nestedBytes = await readFile(nestedEntry);
   assert.deepEqual([...nestedBytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], "UTF-8 BOM was not preserved");
   assert.match(nestedBytes.subarray(3).toString("utf8"), /\.\.\/\.agent-io-safety\/RULE\.md/);
+  expectSuccess(
+    await run(doctorScript, ["--target", bomTarget, "--entry", ".github/copilot-instructions.md"]),
+    "nested BOM doctor check",
+  );
+
+  const claudeTarget = path.join(tempRoot, "claude-project");
+  await mkdir(claudeTarget, { recursive: true });
+  expectSuccess(await run(deployScript, ["--target", claudeTarget, "--entry", "CLAUDE.md"]), "Claude deployment");
+  assert.match(await readFile(path.join(claudeTarget, "CLAUDE.md"), "utf8"), /Shell and text I\/O safety/);
+
+  const emptyTarget = path.join(tempRoot, "empty-project");
+  await mkdir(emptyTarget, { recursive: true });
+  expectFailure(await run(doctorScript, ["--target", emptyTarget, "--entry", "AGENTS.md"]), "doctor missing install");
 }
 
 async function testRunner(tempRoot) {
@@ -157,6 +174,11 @@ async function testRunner(tempRoot) {
   const rejected = await run(runnerScript, [bomSpec], { cwd: runnerRoot });
   expectFailure(rejected, "BOM spec rejection");
   assert.match(rejected.stderr, /without BOM/);
+
+  const example = await run(runnerScript, [path.join(packageRoot, "examples", "safe-shell-command.json")], { cwd: packageRoot });
+  expectSuccess(example, "example argv runner");
+  const examplePayload = JSON.parse(example.stdout);
+  assert.deepEqual(examplePayload.args.slice(0, 2), ["path with spaces/file.txt", "double quote: \""]);
 }
 
 async function testTextTools(tempRoot) {
@@ -205,9 +227,22 @@ async function testTextTools(tempRoot) {
 
 async function testCliHelp() {
   expectSuccess(await run(deployScript, ["--help"]), "deploy help");
+  expectSuccess(await run(doctorScript, ["--help"]), "doctor help");
   expectSuccess(await run(runnerScript, ["--help"]), "runner help");
   expectSuccess(await run(inspectScript, ["--help"]), "inspect help");
   expectSuccess(await run(transcodeScript, ["--help"]), "transcode help");
+}
+
+async function testMetadata() {
+  const schema = JSON.parse(await readFile(schemaPath, "utf8"));
+  assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
+  assert.equal(schema.properties.command.type, "string");
+
+  const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
+  assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
+  assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
+  assert.ok(packageJson.files.includes("schemas/"));
+  assert.ok(packageJson.files.includes("examples/"));
 }
 
 async function safeCleanup(tempRoot) {
@@ -224,6 +259,7 @@ try {
   const bundleCheck = await run(inspectScript, ["--all-files", "--fail-on-bom", "--eol", "lf", "--ps51-safe", packageRoot]);
   expectSuccess(bundleCheck, "bundle text policy");
   await testCliHelp();
+  await testMetadata();
   await testDeployment(tempRoot);
   await testRunner(tempRoot);
   await testTextTools(tempRoot);

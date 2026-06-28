@@ -1,0 +1,48 @@
+name: Encoding or quoting case
+description: Share a shell quoting, mojibake, BOM, or line-ending failure.
+title: "[I/O case]: "
+labels: ["io-case"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Failure kind
+      options:
+        - Shell quoting / argv
+        - stdin/stdout encoding
+        - Invalid UTF-8
+        - UTF-16 / BOM
+        - Line endings
+        - PowerShell 5.1
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: bytes
+    attributes:
+      label: Exact input or bytes
+      description: Include a small non-sensitive sample. Hex is welcome for encoding issues.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or spec
+      description: Paste the command or JSON spec. Remove secrets first.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: OS, shell, terminal, Node.js version
+    validations:
+      required: true

@@ -4,12 +4,35 @@
   "description": "Portable rules, skills, and scripts for safer agent shell and text I/O.",
   "license": "MIT",
   "type": "module",
+  "keywords": [
+    "ai-agents",
+    "agents",
+    "shell",
+    "argv",
+    "encoding",
+    "utf8",
+    "bom",
+    "powershell",
+    "developer-tools"
+  ],
+  "homepage": "https://github.com/Stakkkkk/agent-io-safety-kit#readme",
+  "bugs": {
+    "url": "https://github.com/Stakkkkk/agent-io-safety-kit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Stakkkkk/agent-io-safety-kit.git"
+  },
   "scripts": {
     "test": "node tests/run-tests.mjs",
-    "check:text": "node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe ."
+    "check:text": "node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .",
+    "doctor": "node scripts/doctor.mjs",
+    "pack:dry-run": "npm pack --dry-run"
   },
   "bin": {
+    "agent-io-safety-kit": "scripts/deploy.mjs",
     "agent-io-safety-deploy": "scripts/deploy.mjs",
+    "agent-io-safety-doctor": "scripts/doctor.mjs",
     "safe-shell-run": "skills/safe-shell-io/scripts/run-from-spec.mjs",
     "safe-text-inspect": "skills/safe-text-io/scripts/inspect-text.mjs",
     "safe-text-transcode": "skills/safe-text-io/scripts/transcode-text.mjs"
@@ -20,10 +43,19 @@
   "files": [
     "00-MECHANISM.md",
     "01-DEPLOYMENT.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "README.ru.md",
     "RULE.md",
+    "SECURITY.md",
     "VERSION",
+    "examples/",
+    "schemas/",
     "scripts/",
     "skills/",
     "snippets/"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

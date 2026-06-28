@@ -1,109 +1,178 @@
 # Agent I/O Safety Kit
 
-Небольшой переносимый комплект правил, skills и Node.js-скриптов, который помогает агентам не ломать данные на кавычках, shell-экранировании, кодировках, BOM и окончаниях строк.
+[Русская версия](README.ru.md)
 
-Проект полезен там, где AI-агент регулярно:
+Stop AI agents from losing data to shell quoting, encodings, BOMs, and line endings.
 
-- запускает команды с пользовательским текстом, путями с пробелами, JSON/YAML/SQL/regex или не-ASCII символами;
-- читает, создаёт или преобразует текстовые файлы;
-- работает в Windows/PowerShell и рискует получить mojibake;
-- теряет время на повторные попытки “подобрать кавычки”.
+Agent I/O Safety Kit is a small, dependency-free bundle of rules, skills, and Node.js scripts for safer agent command execution and text file handling. It is meant to be copied into any repository that uses coding agents, regardless of the agent platform.
 
-## Что внутри
+Use it when an agent frequently:
 
-- `RULE.md` — центральная политика безопасного shell и текстового I/O.
-- `skills/safe-shell-io` — инструкция и runner для запуска команд с точной передачей `argv`.
-- `skills/safe-text-io` — инструкция и утилиты для проверки/преобразования текстовых файлов.
-- `scripts/deploy.mjs` — идемпотентный установщик в целевой проект.
-- `tests/run-tests.mjs` — самодостаточный тестовый набор без внешних зависимостей.
+- runs commands with user-controlled text, spaces in paths, quotes, shell metacharacters, JSON/YAML/SQL/regex, multiline values, or non-ASCII characters;
+- reads, creates, edits, or transcodes text files;
+- works on Windows or PowerShell and risks mojibake;
+- wastes time trying different quoting combinations after the first failure.
 
-Подробное описание механизма: [`00-MECHANISM.md`](00-MECHANISM.md). Инструкция по развёртыванию: [`01-DEPLOYMENT.md`](01-DEPLOYMENT.md).
+## What is included
 
-## Требования
+- `RULE.md` — the central policy for safe shell and text I/O.
+- `skills/safe-shell-io` — instructions and a spec runner for exact `argv` execution.
+- `skills/safe-text-io` — instructions and utilities for text inspection and transcoding.
+- `schemas/command-spec.schema.json` — JSON Schema for command specs.
+- `scripts/deploy.mjs` — an idempotent installer for target projects.
+- `scripts/doctor.mjs` — a diagnostic command for installed copies.
+- `snippets/` — managed instruction fragments for common agent entry files.
+- `examples/` — small copy-pasteable examples.
+- `tests/run-tests.mjs` — a self-contained test suite with no npm dependencies.
 
-- Node.js 18 или новее.
-- Целевой проект, куда нужно добавить управляемую копию `.agent-io-safety/`.
+Design overview: [`00-MECHANISM.md`](00-MECHANISM.md). Deployment guide: [`01-DEPLOYMENT.md`](01-DEPLOYMENT.md).
 
-Внешние npm-зависимости не требуются.
+## Requirements
 
-## Быстрый старт
+- Node.js 18 or newer.
+- A target project where `.agent-io-safety/` should be installed.
 
-Предварительно посмотреть план установки:
+No external npm dependencies are required.
+
+## Quick start
+
+Preview an installation:
 
 ```sh
 node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --dry-run
 ```
 
-Установить или обновить комплект:
+Install or update the managed copy:
 
 ```sh
 node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md
 ```
 
-Проверить установленную копию:
+Check an installed copy:
 
 ```sh
 node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --check
+node scripts/doctor.mjs --target /path/to/project --entry AGENTS.md
 ```
 
-По умолчанию установщик создаёт или обновляет управляемый блок в `AGENTS.md` и копирует комплект в `.agent-io-safety/`.
+By default, the installer creates or updates a managed block in `AGENTS.md` and copies the kit to `.agent-io-safety/`.
 
-## Проверки комплекта
+## Instruction for agents
+
+Yes: you should put a short agent-facing instruction in the project README or entry file. The most important rule is not “always use this tool”; it is “stop guessing after the first quoting or encoding failure and switch to the deterministic path”.
+
+Minimal instruction to copy into an agent entry file:
+
+```md
+## Shell and text I/O safety
+
+Before the first operation that uses shell, reads or writes text, passes user-controlled values, paths, JSON/YAML/SQL/regex, non-ASCII characters, encodings, BOM, or line endings, read and follow `.agent-io-safety/RULE.md`.
+
+Load the referenced skill before the matching operation:
+
+- `.agent-io-safety/skills/safe-shell-io/SKILL.md` for complex commands, user values, quoting, shell metacharacters, structured payloads, stdin/stdout, or command-encoding failures.
+- `.agent-io-safety/skills/safe-text-io/SKILL.md` for text files, UTF-8/UTF-16, BOM, line endings, PowerShell 5.1, or mojibake.
+
+Do not repair quoting or mojibake by repeated trial and error. After the first failure, use the deterministic script/spec path from the skill.
+```
+
+The installer uses the shorter managed snippets from [`snippets/`](snippets/) so the root instruction stays small.
+
+## Supported entry files
+
+The same mechanism can be installed into different agent entry files:
+
+```sh
+node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md
+node scripts/deploy.mjs --target /path/to/project --entry CLAUDE.md
+node scripts/deploy.mjs --target /path/to/project --entry GEMINI.md
+node scripts/deploy.mjs --target /path/to/project --entry .github/copilot-instructions.md
+```
+
+Manual fragments are available in [`snippets/`](snippets/).
+
+## Run checks
 
 ```sh
 npm test
 npm run check:text
 ```
 
-То же самое без npm:
+The same checks without npm:
 
 ```sh
 node tests/run-tests.mjs
 node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .
 ```
 
-## Пример: безопасный запуск команды
+After installing the kit into a target project, run:
 
-Создайте JSON-spec в UTF-8 без BOM:
+```sh
+npm run doctor -- --target /path/to/project --entry AGENTS.md
+```
+
+## Example: safe command execution
+
+Create a UTF-8, no-BOM command spec:
 
 ```json
 {
   "command": "node",
-  "args": ["script.mjs", "Денис: \"точный аргумент\"", "$5 & 10%"],
+  "args": ["script.mjs", "Denis: \"exact argument\"", "$5 & 10%"],
   "cwd": ".",
-  "stdin": "строка 1\nстрока 2\n",
+  "stdin": "line 1\nline 2\n",
   "stdoutEncoding": "utf8",
   "stderrEncoding": "utf8"
 }
 ```
 
-Запустите:
+Run it:
 
 ```sh
 node skills/safe-shell-io/scripts/run-from-spec.mjs command.json
 ```
 
-Runner использует `spawn` с `shell: false` и передаёт каждый аргумент отдельно.
+The runner uses `spawn` with `shell: false` and passes every argument as a separate `argv` item.
 
-## Пример: проверка текста
+## Example: text inspection
 
 ```sh
 node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.md
 ```
 
-Утилита строго проверяет UTF-8, BOM, окончания строк и PowerShell 5.1-совместимость для `.ps1/.psd1/.psm1`.
+The inspector strictly checks UTF-8, BOM, line endings, suspicious UTF-16 without BOM, and PowerShell 5.1 safety for `.ps1/.psd1/.psm1`.
 
-## Гарантии и границы
+## Guarantees and boundaries
 
-Комплект помогает сделать хрупкие операции детерминированными:
+The kit makes fragile operations deterministic:
 
-- точная передача аргументов через `argv`;
-- строгая проверка UTF-8 вместо тихой замены повреждённых символов;
-- явная политика BOM и окончаний строк;
-- безопасное обновление управляемой копии с проверкой SHA-256.
+- exact argument passing through `argv`;
+- strict UTF-8 validation instead of silent replacement characters;
+- explicit BOM and line-ending policy;
+- safe managed-copy updates with SHA-256 drift detection;
+- symlink-aware deployment writes.
 
-Он не угадывает legacy-кодировки, не лечит mojibake автоматически и не заменяет системные/пользовательские инструкции более высокого приоритета.
+It does not guess legacy encodings, auto-heal mojibake, process binary formats as text, or override higher-priority system/user/project instructions.
 
-## Лицензия
+## npm status
 
-MIT — см. [`LICENSE`](LICENSE).
+The package is npm-ready but not automatically published by this repository. If the package name is available, publishing can be done manually after a tagged release:
+
+```sh
+npm publish --access public
+```
+
+Useful local commands:
+
+```sh
+npx agent-io-safety-kit --target /path/to/project --entry AGENTS.md --dry-run
+npx safe-text-inspect --fail-on-bom --eol lf README.md
+```
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Encoding and quoting bug reports are especially welcome; please include the exact bytes, shell, OS, command, and expected/actual behavior when possible.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
