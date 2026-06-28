@@ -28,6 +28,23 @@ node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eo
 - Do not save text decoded with replacement characters.
 - Keep PowerShell 5.1 exceptions explicit and tested.
 
+## Localization policy
+
+English is canonical. Russian is maintained as a first-class localization.
+
+When changing canonical instructions, update the matching Russian files whenever practical:
+
+- `README.ru.md`
+- `00-MECHANISM.ru.md`
+- `01-DEPLOYMENT.ru.md`
+- `RULE.ru.md`
+- `skills/**/SKILL.ru.md`
+- `skills/**/references/*.ru.md`
+- `docs/ru/`
+- `snippets/ru/`
+
+If a localization update is intentionally deferred, mention it in the pull request.
+
 ## Command safety policy
 
 - Avoid `shell: true`.

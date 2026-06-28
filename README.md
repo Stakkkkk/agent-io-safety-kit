@@ -1,6 +1,6 @@
 # Agent I/O Safety Kit
 
-[Русская версия](README.ru.md)
+Languages: [English](README.md) | [Russian](README.ru.md)
 
 Stop AI agents from losing data to shell quoting, encodings, BOMs, and line endings.
 
@@ -25,9 +25,29 @@ Use it when an agent frequently:
 - `examples/` — small copy-pasteable examples.
 - `docs/external-tools.md` — optional integrations with mature linters, scanners, and validators.
 - `docs/language-policy.md` — why the core stays dependency-free Node.js.
+- `docs/localization.md` — how English canonical files and Russian localization are maintained.
 - `tests/run-tests.mjs` — a self-contained test suite with no npm dependencies.
 
 Design overview: [`00-MECHANISM.md`](00-MECHANISM.md). Deployment guide: [`01-DEPLOYMENT.md`](01-DEPLOYMENT.md).
+
+## Language policy
+
+English is the canonical language for project files, GitHub/npm metadata, rules, skills, snippets, docs, and examples. Russian is maintained as a first-class localization:
+
+- `README.ru.md`
+- `00-MECHANISM.ru.md`
+- `01-DEPLOYMENT.ru.md`
+- `RULE.ru.md`
+- `skills/**/SKILL.ru.md`
+- `skills/**/references/*.ru.md`
+- `docs/ru/`
+
+The installer can deploy either language while preserving the same target paths:
+
+```sh
+node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang en
+node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang ru
+```
 
 ## Requirements
 
@@ -48,6 +68,12 @@ Install or update the managed copy:
 
 ```sh
 node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md
+```
+
+Install Russian localized agent instructions:
+
+```sh
+node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang ru
 ```
 
 Check an installed copy:

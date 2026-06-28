@@ -3,57 +3,57 @@ name: safe-text-io
 description: Inspect, read, create, edit, validate, and transcode text with explicit encoding, BOM, and line-ending semantics. Use for non-ASCII text, generated files, PowerShell 5.1 scripts, mojibake, UTF-8/UTF-16/legacy encoding questions, BOM problems, newline normalization, or any file operation where shell defaults could alter bytes.
 ---
 
-# Безопасный текстовый I/O
+# Safe text I/O
 
-## Определить политику
+## Determine policy
 
-Выбрать формат в порядке приоритета:
+Choose the format in this priority order:
 
-1. явное требование пользователя;
-2. инструкции проекта;
-3. `.editorconfig`, `.gitattributes`, конфигурация инструмента и существующие байты файла;
-4. для нового текста без политики — UTF-8 без BOM и LF.
+1. explicit user requirement;
+2. project instructions;
+3. `.editorconfig`, `.gitattributes`, tool configuration, and existing file bytes;
+4. for new text without policy — UTF-8 without BOM and LF.
 
-Не угадывать legacy-кодировку. Не декодировать с replacement characters и не сохранять результат поверх исходника.
+Do not guess legacy encodings. Do not decode with replacement characters and save the result over the source.
 
-## Выбрать операцию
+## Choose the operation
 
-- Для обычной правки использовать структурированный редактор или patch API.
-- Для диагностики запустить `scripts/inspect-text.mjs`.
-- Для явного преобразования использовать `scripts/transcode-text.mjs`.
-- Для команды, которая генерирует текст, дополнительно применить `safe-shell-io` и указать кодировку stdout.
+- For normal edits, use a structured editor or patch API.
+- For diagnostics, run `scripts/inspect-text.mjs`.
+- For explicit transcoding, run `scripts/transcode-text.mjs`.
+- For commands that generate text, also apply `safe-shell-io` and specify stdout encoding.
 
-Не использовать shell redirection, `Set-Content`, `Out-File`, `echo` или неявный `Get-Content`, если их точная байтовая семантика не проверена для текущей версии оболочки.
+Do not use shell redirection, `Set-Content`, `Out-File`, `echo`, or implicit `Get-Content` unless their exact byte semantics are verified for the current shell version.
 
-## Проверить файлы
+## Inspect files
 
-Диагностика одного файла или каталога:
+Inspect one file or directory:
 
 ```text
 node <skill-dir>/scripts/inspect-text.mjs <path> [<path> ...]
 ```
 
-Полезные строгие флаги:
+Useful strict flags:
 
-- `--fail-on-bom` — запретить любой BOM;
-- `--eol lf|crlf` — проверить окончания строк;
-- `--ps51-safe` — потребовать ASCII-only либо UTF-8 BOM для PowerShell 5.1;
-- `--json` — вернуть машинно-читаемый отчёт.
+- `--fail-on-bom` — forbid any BOM;
+- `--eol lf|crlf` — check line endings;
+- `--ps51-safe` — require ASCII-only or UTF-8 BOM for PowerShell 5.1 files;
+- `--json` — return a machine-readable report.
 
-Невалидный UTF-8 и UTF-16 всегда возвращают ошибку. Бинарные файлы пропускаются.
+Invalid UTF-8 and UTF-16 are always errors. Binary files are skipped.
 
-## Преобразовать явно
+## Transcode explicitly
 
 ```text
 node <skill-dir>/scripts/transcode-text.mjs --input <source> --output <target> --source-encoding auto --target-encoding utf8 --bom none --eol preserve
 ```
 
-Не перезаписывать существующий target без `--force`. Для изменения исходника на месте передать `--in-place` и не указывать `--output`. Для предварительного сравнения добавить `--check`.
+Do not overwrite an existing target without `--force`. To modify the source in place, pass `--in-place` and do not pass `--output`. For a comparison-only check, add `--check`.
 
-Подробную матрицу читать в `references/encoding-policy.md` при работе с PowerShell, UTF-16 или существующей политикой проекта.
+Read `references/encoding-policy.md` when working with PowerShell, UTF-16, or an existing project policy.
 
 ## PowerShell 5.1
 
-Для переносимых `.ps1` предпочитать ASCII-only в UTF-8 без BOM. Если скрипт обязан содержать не-ASCII и запускаться Windows PowerShell 5.1, использовать UTF-8 BOM как явно задокументированное исключение. Не переносить это исключение на остальные файлы.
+For portable `.ps1` files, prefer ASCII-only UTF-8 without BOM. If a script must contain non-ASCII text and run in Windows PowerShell 5.1, use UTF-8 BOM as an explicitly documented exception. Do not generalize this exception to other files.
 
-После записи повторно запустить `inspect-text.mjs` на затронутых файлах и выполнить потребляющий их инструмент.
+After writing, rerun `inspect-text.mjs` on affected files and run the consuming tool.

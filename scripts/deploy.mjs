@@ -17,7 +17,7 @@ function fail(message, code = 2) {
 function usage() {
   process.stderr.write(
     "usage: node deploy.mjs [--target dir] [--entry AGENTS.md] " +
-      "[--dest .agent-io-safety] [--dry-run|--check] [--force] [--fragment file]\n",
+      "[--dest .agent-io-safety] [--lang en|ru] [--dry-run|--check] [--force] [--fragment file]\n",
   );
 }
 
@@ -30,6 +30,7 @@ function parseArgs(argv) {
     check: false,
     force: false,
     fragment: undefined,
+    lang: "en",
   };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
@@ -37,6 +38,7 @@ function parseArgs(argv) {
     else if (value === "--entry") options.entry = argv[++index];
     else if (value === "--dest") options.dest = argv[++index];
     else if (value === "--fragment") options.fragment = argv[++index];
+    else if (value === "--lang") options.lang = argv[++index];
     else if (value === "--dry-run") options.dryRun = true;
     else if (value === "--check") options.check = true;
     else if (value === "--force") options.force = true;
@@ -46,6 +48,7 @@ function parseArgs(argv) {
   if (!options.target || !options.entry || !options.dest || options.fragment === "") {
     throw new Error("path options require values");
   }
+  if (!new Set(["en", "ru"]).has(options.lang)) throw new Error("--lang must be en or ru");
   if (options.dryRun && options.check) throw new Error("--dry-run and --check are mutually exclusive");
   if (options.check && options.force) throw new Error("--check and --force are mutually exclusive");
   return options;
@@ -141,6 +144,12 @@ function selectFragment(entry) {
   return "AGENTS.md.fragment";
 }
 
+async function localizedSource(canonicalPath, lang) {
+  if (lang !== "ru" || !canonicalPath.endsWith(".md")) return canonicalPath;
+  const localizedPath = canonicalPath.replace(/\.md$/u, ".ru.md");
+  return (await exists(localizedPath)) ? localizedPath : canonicalPath;
+}
+
 function updateEntry(existingText, fragmentLf, eol) {
   const begin = existingText.indexOf(BEGIN_MARKER);
   const end = existingText.indexOf(END_MARKER);
@@ -169,14 +178,19 @@ async function collectFiles(root, relative = "") {
   return output;
 }
 
-async function sourceArtifacts() {
+async function sourceArtifacts(lang = "en") {
   const mappings = [
     { source: path.join(packageRoot, "VERSION"), destination: "VERSION" },
-    { source: path.join(packageRoot, "RULE.md"), destination: "RULE.md" },
+    { source: await localizedSource(path.join(packageRoot, "RULE.md"), lang), destination: "RULE.md" },
   ];
   const skillsRoot = path.join(packageRoot, "skills");
   for (const relative of await collectFiles(skillsRoot)) {
-    mappings.push({ source: path.join(skillsRoot, relative), destination: path.join("skills", relative) });
+    if (relative.endsWith(".ru.md")) continue;
+    const canonicalPath = path.join(skillsRoot, relative);
+    mappings.push({
+      source: await localizedSource(canonicalPath, lang),
+      destination: path.join("skills", relative),
+    });
   }
 
   const artifacts = [];
@@ -208,7 +222,7 @@ async function buildState(options) {
   const destinationRoot = inside(targetRoot, options.dest, "destination");
   if (isInsidePath(destinationRoot, entryPath)) throw new Error("entry file cannot be inside deployment destination");
 
-  const artifacts = await sourceArtifacts();
+  const artifacts = await sourceArtifacts(options.lang);
   const version = decodeUtf8(await readFile(path.join(packageRoot, "VERSION")), "VERSION", { allowBom: false }).text.trim();
   const manifestPath = path.join(destinationRoot, "MANIFEST.json");
   const oldManifest = await readManifest(manifestPath);
@@ -239,7 +253,7 @@ async function buildState(options) {
 
   const fragmentPath = options.fragment
     ? path.resolve(packageRoot, options.fragment)
-    : path.join(packageRoot, "snippets", selectFragment(options.entry));
+    : path.join(packageRoot, "snippets", options.lang === "ru" ? "ru" : "", selectFragment(options.entry));
   if (!isInsidePath(packageRoot, fragmentPath)) throw new Error("fragment must stay inside package root");
   const template = decodeUtf8(
     await readFile(fragmentPath),
@@ -265,6 +279,7 @@ async function buildState(options) {
   const manifest = {
     schemaVersion: 1,
     packageVersion: version,
+    language: options.lang,
     files: artifacts.map((artifact) => ({ path: artifact.destination, sha256: artifact.hash })),
   };
   const manifestBytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, "utf8");

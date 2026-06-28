@@ -1,5 +1,5 @@
 <!-- agent-io-safety:begin -->
-## Безопасность shell и текстового I/O
+## Shell and text I/O safety
 
-Перед первой операцией, которая использует shell, читает или записывает текст, передаёт пользовательские данные, пути, JSON/YAML/SQL/regex, не-ASCII символы, кодировки, BOM или окончания строк, обязательно прочитай и соблюдай [центральное правило]({{RULE_PATH}}). Прочитай указанные в нём skill-файлы до выполнения соответствующей операции. Не исправляй quoting или mojibake повторными пробами.
+Before the first operation that uses shell, reads or writes text, passes user-controlled data, paths, JSON/YAML/SQL/regex, non-ASCII characters, encodings, BOM, or line endings, read and follow [the central rule]({{RULE_PATH}}). Read the referenced skill files before the matching operation. Do not fix quoting or mojibake by repeated trial and error.
 <!-- agent-io-safety:end -->

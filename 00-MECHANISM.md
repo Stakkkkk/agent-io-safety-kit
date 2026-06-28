@@ -1,46 +1,48 @@
-# Механизм Agent I/O Safety
+# Agent I/O Safety mechanism
 
-## Назначение
+[Russian version](00-MECHANISM.ru.md)
 
-Комплект предотвращает повторяющиеся потери времени на кавычках, shell-экранировании, кодировках, BOM, окончаниях строк и передаче структурированных данных. Он не привязан к конкретному проекту или агентской платформе.
+## Purpose
 
-## Состав
+This kit prevents recurring failures around quotes, shell escaping, encodings, BOM, line endings, and structured data transport. It is not tied to a specific project or agent platform.
 
-1. **Врезка в корневые инструкции** — короткий управляемый блок в `AGENTS.md`, `CLAUDE.md` или другом стартовом файле. Он не содержит подробностей, а обязательно направляет агента в центральное правило.
-2. **Центральное правило `RULE.md`** — единая политика выбора безопасного способа чтения, записи и запуска команд.
-3. **Skills** — инструкции, которые загружаются только для соответствующей операции:
-   - `safe-shell-io` — точная передача аргументов без повторного парсинга оболочкой;
-   - `safe-text-io` — явная работа с кодировками, BOM и окончаниями строк.
-4. **Детерминированные скрипты** — выполняют хрупкие операции вместо того, чтобы каждый агент заново сочинял quoting и преобразование байтов.
-5. **Установщик** — идемпотентно копирует правило и skills в проект, создаёт или обновляет управляемую врезку и обнаруживает локальный дрейф.
-6. **Doctor** — проверяет установленную копию, манифест, версию, управляемые файлы и базовую текстовую валидность.
-7. **Schema и examples** — помогают валидировать command spec в редакторах и быстро воспроизводить типичные quoting/encoding случаи.
-8. **External tools guide** — связывает комплект со зрелыми линтерами, scanner-ами и валидаторами без превращения ядра в тяжёлый meta-linter.
+## Components
 
-## Поток управления
+1. **Managed entry-file snippet** — a short controlled block in `AGENTS.md`, `CLAUDE.md`, or another agent entry file. It stays small and points the agent to the central rule.
+2. **Central rule `RULE.md`** — one policy for choosing safe command execution and text I/O paths.
+3. **Skills** — detailed instructions loaded only for the relevant operation:
+   - `safe-shell-io` for exact argument passing without accidental shell re-parsing;
+   - `safe-text-io` for explicit encoding, BOM, and line-ending handling.
+4. **Deterministic scripts** — reusable implementations for fragile operations that agents should not re-invent ad hoc.
+5. **Installer** — idempotently copies the rule and skills into a project, creates or updates the managed snippet, and detects local drift.
+6. **Doctor** — checks installed copies, manifests, versions, managed files, text validity, and optional external-tool recommendations.
+7. **Schema and examples** — make command specs editor-friendly and show common quoting/encoding cases.
+8. **External tools guide** — connects the kit to mature linters, scanners, and validators without turning the core into a heavyweight meta-linter.
 
-`корневые инструкции → врезка → центральное правило → нужный skill → готовый скрипт → doctor/проверка результата`
+## Control flow
 
-Автоматическое обнаружение skills платформой не требуется. Центральное правило содержит прямые относительные пути к `SKILL.md`, поэтому агент может загрузить их как обычные файлы. Нативную регистрацию skills можно добавить поверх этого механизма как оптимизацию.
+`entry instructions → managed snippet → central rule → relevant skill → deterministic script → doctor/result check`
 
-Фрагменты для популярных entry-файлов находятся в `snippets/`. Установщик выбирает фрагмент по `--entry`, если для него есть специализированный шаблон.
+Native skill discovery by a platform is not required. The central rule contains relative paths to `SKILL.md`, so an agent can read them as normal files. Native skill registration can be added on top as an optimization.
 
-Внешние инструменты подключаются после стабилизации I/O-границ. Их отсутствие не ломает базовый механизм; `doctor --external` только сообщает рекомендации.
+Fragments for common entry files live in `snippets/`. The installer chooses a fragment based on `--entry` when a specialized template exists.
 
-## Почему механизм экономит токены
+External tools run after I/O boundaries are stabilized. Their absence does not break the core mechanism; `doctor --external` reports recommendations.
 
-- В обычном контексте постоянно находится только короткая врезка.
-- Центральное правило загружается перед первой операцией с shell или текстовым I/O.
-- Подробности конкретного случая находятся в одном из двух skills.
-- После первой сложности агент обязан перейти к argv/spec или явной обработке байтов, а не пробовать новые комбинации кавычек.
-- Повторяющаяся логика реализована один раз в скриптах.
+## Why this saves tokens
 
-## Гарантии и границы
+- The normal context contains only a short entry-file snippet.
+- The central rule is read before the first shell or text I/O operation.
+- Case-specific details live in one of two skills.
+- After the first quoting, parsing, or mojibake failure, the agent must switch to a deterministic argv/spec or byte-processing path.
+- Repeated logic lives once in scripts.
 
-Механизм гарантирует точную передачу argv при использовании `shell: false`, строгую проверку UTF-8 и контролируемое развёртывание. Он не угадывает legacy-кодировки и не переписывает неизвестный текст автоматически.
+## Guarantees and boundaries
 
-Явная политика проекта имеет приоритет над кодировкой по умолчанию. Системные и пользовательские инструкции более высокого уровня имеют приоритет над этим комплектом. Бинарные форматы не относятся к текстовому I/O.
+The mechanism guarantees exact argv transfer when `shell: false` is used, strict UTF-8 validation, and controlled deployment. It does not guess legacy encodings and does not rewrite unknown text automatically.
 
-## Жизненный цикл
+Explicit project policy has priority over defaults. Higher-priority system and user instructions override this kit. Binary formats are outside text I/O.
 
-Каноническая версия хранится в этом каталоге. В проекты попадает управляемая копия `.agent-io-safety/`. Изменения вносятся в канонический комплект, тестируются и затем повторно разворачиваются. Развёрнутые копии не следует редактировать вручную.
+## Lifecycle
+
+The canonical version lives in this repository. Target projects receive a managed copy in `.agent-io-safety/`. Changes should be made in the canonical kit, tested, and then redeployed. Installed managed copies should not be edited by hand.

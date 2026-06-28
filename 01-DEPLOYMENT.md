@@ -1,68 +1,86 @@
-# Развёртывание механизма
+# Deploying the mechanism
 
-## Требования
+[Russian version](01-DEPLOYMENT.ru.md)
 
-- Node.js 18 или новее.
-- Корневой каталог целевого проекта.
-- Имя стартового файла с инструкциями для агента. По умолчанию используется `AGENTS.md`.
+## Requirements
 
-## Предварительная проверка
+- Node.js 18 or newer.
+- The root directory of the target project.
+- The agent entry-file name. `AGENTS.md` is used by default.
+
+## Preview
 
 ```text
 node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --dry-run
 ```
 
-Команда показывает план, но ничего не меняет.
+The command prints a plan and changes nothing.
 
-## Установка или обновление
+## Install or update
 
 ```text
 node scripts/deploy.mjs --target <project-root> --entry AGENTS.md
 ```
 
-Установщик:
+The installer:
 
-1. копирует правило, skills и версию в `<project-root>/.agent-io-safety/`;
-2. создаёт или заменяет управляемый блок в стартовом файле;
-3. сохраняет UTF-8 BOM и стиль строк существующего стартового файла;
-4. записывает манифест с SHA-256 управляемых файлов;
-5. не удаляет неизвестные файлы в каталоге назначения.
+1. copies the rule, skills, and version into `<project-root>/.agent-io-safety/`;
+2. creates or replaces the managed block in the entry file;
+3. preserves UTF-8 BOM and line-ending style of an existing entry file;
+4. writes a manifest with SHA-256 hashes of managed files;
+5. does not delete unknown files in the destination directory.
 
-Если управляемая копия была изменена вручную, обновление останавливается. После осознанной проверки её можно восстановить канонической версией:
+If a managed copy was edited by hand, an update stops. After reviewing the change, restore the canonical version with:
 
 ```text
 node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --force
 ```
 
-## Проверка установленной копии
+## Language
+
+English is the canonical language:
+
+```text
+node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --lang en
+```
+
+Russian localized instructions can be installed with:
+
+```text
+node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --lang ru
+```
+
+The destination layout is the same for both languages: the installed rule is still `.agent-io-safety/RULE.md`, and referenced skills keep their canonical paths. The manifest records the selected language.
+
+## Check an installed copy
 
 ```text
 node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --check
 ```
 
-Код возврата ненулевой, если отсутствует врезка, отличаются управляемые файлы или версия устарела.
+The exit code is non-zero if the managed snippet is missing, managed files differ, or the installed version/language is out of date.
 
-Более подробная диагностика:
+More detailed diagnostics:
 
 ```text
 node scripts/doctor.mjs --target <project-root> --entry AGENTS.md
 ```
 
-`doctor` проверяет Node.js, наличие entry-файла, управляемые маркеры, `MANIFEST.json`, версию, SHA-256 управляемых файлов и базовую текстовую валидность установленной копии.
+`doctor` checks Node.js, the entry file, managed markers, `MANIFEST.json`, version, language, SHA-256 hashes, and basic text validity.
 
-Для необязательных внешних инструментов:
+Optional external-tool recommendations:
 
 ```text
 node scripts/doctor.mjs --target <project-root> --entry AGENTS.md --external
 ```
 
-Отсутствующие внешние инструменты дают предупреждения, но не ошибку. Политика и список рекомендаций описаны в `docs/external-tools.md`.
+Missing external tools produce warnings, not errors. See `docs/external-tools.md`.
 
-## Врезка
+## Managed snippet
 
-Шаблон находится в `snippets/AGENTS.md.fragment`. Установщик заменяет `{{RULE_PATH}}` относительным путём от стартового файла к развёрнутому правилу.
+Templates live in `snippets/`. The installer replaces `{{RULE_PATH}}` with a relative path from the entry file to the installed rule.
 
-Границы блока:
+Managed block markers:
 
 ```text
 <!-- agent-io-safety:begin -->
@@ -70,11 +88,11 @@ node scripts/doctor.mjs --target <project-root> --entry AGENTS.md --external
 <!-- agent-io-safety:end -->
 ```
 
-Блок можно безопасно обновлять повторным запуском установщика. Ручной текст вне этих маркеров сохраняется.
+The block is safe to update by rerunning the installer. Manual text outside the markers is preserved.
 
-## Другие платформы
+## Other platforms
 
-Передать нужный стартовый файл через `--entry`:
+Pass the desired entry file through `--entry`:
 
 ```text
 node scripts/deploy.mjs --target <project-root> --entry CLAUDE.md
@@ -82,28 +100,28 @@ node scripts/deploy.mjs --target <project-root> --entry GEMINI.md
 node scripts/deploy.mjs --target <project-root> --entry .github/copilot-instructions.md
 ```
 
-Установщик выбирает подходящий шаблон из `snippets/` для `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` и Cursor rule-файлов. При необходимости можно явно передать фрагмент:
+The installer chooses a matching template for `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, and Cursor rule files. A custom fragment can be passed explicitly:
 
 ```text
 node scripts/deploy.mjs --target <project-root> --entry CLAUDE.md --fragment snippets/CLAUDE.md.fragment
 ```
 
-Если платформа поддерживает нативные skills, каталог `.agent-io-safety/skills/` можно дополнительно подключить к её реестру. Это ускоряет автоматический trigger, но не является условием работы механизма.
+If the platform supports native skills, `.agent-io-safety/skills/` can also be registered with it. This can improve automatic triggering, but it is not required.
 
 ## Command spec schema
 
-Для command spec доступна JSON Schema:
+Command specs can use:
 
 ```text
 schemas/command-spec.schema.json
 ```
 
-Её можно подключить в spec через поле `$schema`, чтобы редактор подсвечивал ошибки структуры до запуска `run-from-spec.mjs`.
+Add it through `$schema` so editors can detect structural errors before `run-from-spec.mjs` runs.
 
-## Обновление самого комплекта
+## Updating the kit itself
 
-1. Изменить канонические правило, skills или скрипты.
-2. Запустить `node tests/run-tests.mjs`.
-3. Запустить `node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .`.
-4. Увеличить `VERSION` и обновить `CHANGELOG.md`, если готовится релиз.
-5. Выполнить `--dry-run`, затем обычное развёртывание в нужных проектах.
+1. Change the canonical rule, skills, scripts, docs, or snippets.
+2. Run `node tests/run-tests.mjs`.
+3. Run `node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .`.
+4. Update `VERSION` and `CHANGELOG.md` if preparing a release.
+5. Run `--dry-run`, then deploy normally into target projects.

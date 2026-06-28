@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Made English the canonical project language.
+- Added maintained Russian localization files.
+- Added `--lang en|ru` deployment support.
+- Added localization checks to tests.
+
 ## 0.1.0 - 2026-06-28
 
 Initial public release.

@@ -1,33 +1,33 @@
-# Матрица кодировок
+# Encoding matrix
 
-## Новый текст без политики проекта
+## New text without project policy
 
-- Кодировка: UTF-8.
-- BOM: отсутствует.
-- Окончания строк: LF.
-- Запись: patch API, структурированный редактор или детерминированный Node.js-скрипт.
+- Encoding: UTF-8.
+- BOM: none.
+- Line endings: LF.
+- Write method: patch API, structured editor, or deterministic Node.js script.
 
-## Существующий текст
+## Existing text
 
-1. Проверить BOM и строгую валидность UTF-8.
-2. Проверить `.editorconfig`, `.gitattributes` и инструкции проекта.
-3. Сохранять подтверждённые кодировку и окончания строк, если задача не требует преобразования.
-4. При неизвестной legacy-кодировке не изменять файл до явного выбора.
+1. Check BOM and strict UTF-8 validity.
+2. Check `.editorconfig`, `.gitattributes`, and project instructions.
+3. Preserve confirmed encoding and line endings unless the task requires conversion.
+4. If a legacy encoding is unknown, do not modify the file until an explicit choice is made.
 
 ## PowerShell
 
-| Среда | Безопасный исходник `.ps1` |
+| Environment | Safe `.ps1` source |
 |---|---|
-| PowerShell 7+ | UTF-8 без BOM |
-| Windows PowerShell 5.1, ASCII-only | UTF-8 без BOM |
-| Windows PowerShell 5.1, есть не-ASCII | UTF-8 BOM как явное исключение |
+| PowerShell 7+ | UTF-8 without BOM |
+| Windows PowerShell 5.1, ASCII-only | UTF-8 without BOM |
+| Windows PowerShell 5.1, contains non-ASCII | UTF-8 BOM as an explicit exception |
 
-Вывод нативных программ, `$OutputEncoding`, console code page и кодировка файлов являются разными границами. Настройка одной из них не исправляет остальные автоматически.
+Native program output, `$OutputEncoding`, console code page, and file encoding are separate boundaries. Changing one of them does not automatically fix the others.
 
-## Запрещённые автоматические действия
+## Forbidden automatic actions
 
-- Не определять CP1251/CP866 только по «похожему» результату.
-- Не сохранять текст после декодирования с `�`.
-- Не убирать BOM массово без проверки потребителя.
-- Не нормализовать все окончания строк без требования проекта.
-- Не использовать бинарный файл как текст из-за расширения.
+- Do not identify CP1251/CP866 only because the result “looks right”.
+- Do not save text after decoding with `�`.
+- Do not remove BOMs in bulk without checking the consumer.
+- Do not normalize all line endings without a project requirement.
+- Do not treat a binary file as text because of its extension.

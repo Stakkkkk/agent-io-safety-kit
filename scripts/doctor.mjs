@@ -13,7 +13,7 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 function usage() {
   process.stderr.write(
     "usage: node doctor.mjs [--target dir] [--entry AGENTS.md] [--dest .agent-io-safety] " +
-      "[--json] [--skip-text] [--external]\n",
+      "[--lang auto|en|ru] [--json] [--skip-text] [--external]\n",
   );
 }
 
@@ -25,6 +25,7 @@ function parseArgs(argv) {
     json: false,
     skipText: false,
     external: false,
+    lang: "auto",
     help: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -35,10 +36,12 @@ function parseArgs(argv) {
     else if (value === "--json") options.json = true;
     else if (value === "--skip-text") options.skipText = true;
     else if (value === "--external") options.external = true;
+    else if (value === "--lang") options.lang = argv[++index];
     else if (value === "--help" || value === "-h") options.help = true;
     else throw new Error(`unknown option: ${value}`);
   }
   if (!options.target || !options.entry || !options.dest) throw new Error("path options require values");
+  if (!new Set(["auto", "en", "ru"]).has(options.lang)) throw new Error("--lang must be auto, en, or ru");
   return options;
 }
 
@@ -92,6 +95,12 @@ async function collectFiles(root, relative = "") {
   return output;
 }
 
+async function localizedSource(canonicalPath, lang) {
+  if (lang !== "ru" || !canonicalPath.endsWith(".md")) return canonicalPath;
+  const localizedPath = canonicalPath.replace(/\.md$/u, ".ru.md");
+  return (await exists(localizedPath)) ? localizedPath : canonicalPath;
+}
+
 async function collectProjectFiles(root, relative = "") {
   const excludes = new Set([".git", ".agent-io-safety", "node_modules", "vendor", "dist", "build", "coverage"]);
   const directory = path.join(root, relative);
@@ -105,14 +114,19 @@ async function collectProjectFiles(root, relative = "") {
   return output;
 }
 
-async function sourceArtifacts() {
+async function sourceArtifacts(lang = "en") {
   const mappings = [
     { source: path.join(packageRoot, "VERSION"), destination: "VERSION" },
-    { source: path.join(packageRoot, "RULE.md"), destination: "RULE.md" },
+    { source: await localizedSource(path.join(packageRoot, "RULE.md"), lang), destination: "RULE.md" },
   ];
   const skillsRoot = path.join(packageRoot, "skills");
   for (const relative of await collectFiles(skillsRoot)) {
-    mappings.push({ source: path.join(skillsRoot, relative), destination: path.join("skills", relative) });
+    if (relative.endsWith(".ru.md")) continue;
+    const canonicalPath = path.join(skillsRoot, relative);
+    mappings.push({
+      source: await localizedSource(canonicalPath, lang),
+      destination: path.join("skills", relative),
+    });
   }
 
   const artifacts = [];
@@ -437,8 +451,19 @@ async function doctor(options) {
     );
   }
 
+  const manifestLanguage = manifest?.language ?? "en";
+  const expectedLanguage = options.lang === "auto" ? manifestLanguage : options.lang;
+  if (manifest) {
+    add(
+      checks,
+      manifestLanguage === expectedLanguage ? "ok" : "error",
+      "language",
+      `installed=${manifestLanguage} expected=${expectedLanguage}`,
+    );
+  }
+
   if (manifest?.files) {
-    const artifacts = await sourceArtifacts();
+    const artifacts = await sourceArtifacts(expectedLanguage);
     const expected = new Map(artifacts.map((artifact) => [artifact.destination, artifact.hash]));
     const installed = new Map(manifest.files.map((item) => [item.path, item.sha256]));
     let mismatchCount = 0;

@@ -64,7 +64,11 @@ async function testDeployment(tempRoot) {
   const firstText = firstEntry.toString("utf8");
   assert.match(firstText, /agent-io-safety:begin/);
   assert.match(firstText, /\.agent-io-safety\/RULE\.md/);
+  assert.match(firstText, /Shell and text I\/O safety/);
   assert.equal(firstText.replaceAll("\r\n", "").includes("\n"), false, "entry EOL was not preserved");
+  const firstManifest = JSON.parse(await readFile(path.join(target, ".agent-io-safety", "MANIFEST.json"), "utf8"));
+  assert.equal(firstManifest.language, "en", "default deployment language changed");
+  assert.match(await readFile(path.join(target, ".agent-io-safety", "RULE.md"), "utf8"), /Safe shell and text I\/O rule/);
 
   const beforeSecond = digest(await readFile(entryPath));
   const second = await run(deployScript, ["--target", target, "--entry", "AGENTS.md"]);
@@ -134,6 +138,18 @@ async function testDeployment(tempRoot) {
   await mkdir(claudeTarget, { recursive: true });
   expectSuccess(await run(deployScript, ["--target", claudeTarget, "--entry", "CLAUDE.md"]), "Claude deployment");
   assert.match(await readFile(path.join(claudeTarget, "CLAUDE.md"), "utf8"), /Shell and text I\/O safety/);
+
+  const russianTarget = path.join(tempRoot, "russian-project");
+  await mkdir(russianTarget, { recursive: true });
+  expectSuccess(await run(deployScript, ["--target", russianTarget, "--entry", "AGENTS.md", "--lang", "ru"]), "Russian deployment");
+  assert.match(await readFile(path.join(russianTarget, "AGENTS.md"), "utf8"), /Безопасность shell/);
+  assert.match(await readFile(path.join(russianTarget, ".agent-io-safety", "RULE.md"), "utf8"), /Правило безопасного shell/);
+  const russianManifest = JSON.parse(await readFile(path.join(russianTarget, ".agent-io-safety", "MANIFEST.json"), "utf8"));
+  assert.equal(russianManifest.language, "ru");
+  expectSuccess(await run(deployScript, ["--target", russianTarget, "--entry", "AGENTS.md", "--lang", "ru", "--check"]), "Russian deployment check");
+  expectSuccess(await run(doctorScript, ["--target", russianTarget, "--entry", "AGENTS.md", "--lang", "ru"]), "Russian doctor check");
+  expectFailure(await run(deployScript, ["--target", russianTarget, "--entry", "AGENTS.md", "--lang", "en", "--check"]), "language mismatch check");
+  expectFailure(await run(doctorScript, ["--target", russianTarget, "--entry", "AGENTS.md", "--lang", "en"]), "doctor language mismatch");
 
   const emptyTarget = path.join(tempRoot, "empty-project");
   await mkdir(emptyTarget, { recursive: true });
@@ -251,6 +267,9 @@ async function testMetadata() {
   assert.ok(packageJson.files.includes("examples/"));
   assert.ok(packageJson.files.includes("docs/"));
   assert.ok(packageJson.files.includes("recipes/"));
+  assert.ok(packageJson.files.includes("RULE.ru.md"));
+  assert.ok(packageJson.files.includes("00-MECHANISM.ru.md"));
+  assert.ok(packageJson.files.includes("01-DEPLOYMENT.ru.md"));
 }
 
 async function safeCleanup(tempRoot) {

@@ -1,6 +1,6 @@
 # Agent I/O Safety Kit
 
-[English version](README.md)
+Языки: [English](README.md) | [Русский](README.ru.md)
 
 Небольшой переносимый комплект правил, skills и Node.js-скриптов, который помогает агентам не ломать данные на кавычках, shell-экранировании, кодировках, BOM и окончаниях строк.
 
@@ -21,11 +21,31 @@
 - `scripts/doctor.mjs` — диагностика установленной копии.
 - `snippets/` — управляемые фрагменты инструкций для разных агентских entry-файлов.
 - `examples/` — маленькие примеры для копирования.
-- `docs/external-tools.md` — опциональные интеграции со зрелыми линтерами, сканерами и валидаторами.
-- `docs/language-policy.md` — почему ядро остаётся dependency-free Node.js.
+- `docs/ru/external-tools.md` — опциональные интеграции со зрелыми линтерами, сканерами и валидаторами.
+- `docs/ru/language-policy.md` — почему ядро остаётся dependency-free Node.js.
+- `docs/ru/localization.md` — как поддерживаются английские canonical-файлы и русская локализация.
 - `tests/run-tests.mjs` — самодостаточный тестовый набор без внешних зависимостей.
 
-Подробное описание механизма: [`00-MECHANISM.md`](00-MECHANISM.md). Инструкция по развёртыванию: [`01-DEPLOYMENT.md`](01-DEPLOYMENT.md).
+Подробное описание механизма: [`00-MECHANISM.ru.md`](00-MECHANISM.ru.md). Инструкция по развёртыванию: [`01-DEPLOYMENT.ru.md`](01-DEPLOYMENT.ru.md).
+
+## Языковая политика
+
+Английский — канонический язык файлов проекта, GitHub/npm metadata, правил, skills, snippets, docs и examples. Русский поддерживается как полноценная локализация:
+
+- `README.ru.md`
+- `00-MECHANISM.ru.md`
+- `01-DEPLOYMENT.ru.md`
+- `RULE.ru.md`
+- `skills/**/SKILL.ru.md`
+- `skills/**/references/*.ru.md`
+- `docs/ru/`
+
+Установщик может развернуть любой язык, сохраняя одинаковые целевые пути:
+
+```sh
+node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang en
+node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang ru
+```
 
 ## Требования
 
@@ -46,6 +66,12 @@ node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --dry-run
 
 ```sh
 node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md
+```
+
+Установить русскую локализованную инструкцию для агента:
+
+```sh
+node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang ru
 ```
 
 Проверить установленную копию:
@@ -160,7 +186,7 @@ node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.
 
 ## Внешние инструменты
 
-Комплект не пытается заменить зрелые линтеры и сканеры. Он определяет safety-boundary, после чего существующие инструменты могут делать domain-specific анализ. См. [`docs/external-tools.md`](docs/external-tools.md) и [`docs/language-policy.md`](docs/language-policy.md).
+Комплект не пытается заменить зрелые линтеры и сканеры. Он определяет safety-boundary, после чего существующие инструменты могут делать domain-specific анализ. См. [`docs/ru/external-tools.md`](docs/ru/external-tools.md) и [`docs/ru/language-policy.md`](docs/ru/language-policy.md).
 
 ## Статус npm
 
