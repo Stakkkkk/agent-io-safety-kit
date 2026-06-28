@@ -1,0 +1,43 @@
+# Optional pre-commit recipe.
+# Copy to `.pre-commit-config.yaml` and adjust hooks for the tools your project actually uses.
+#
+# Official pre-commit docs: https://pre-commit.com/
+
+repos:
+  - repo: local
+    hooks:
+      - id: agent-io-safety-tests
+        name: Agent I/O Safety tests
+        entry: node tests/run-tests.mjs
+        language: system
+        pass_filenames: false
+
+      - id: agent-io-safety-text
+        name: Agent I/O Safety text policy
+        entry: node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .
+        language: system
+        pass_filenames: false
+
+      - id: shellcheck
+        name: ShellCheck
+        entry: shellcheck
+        language: system
+        types_or: [shell]
+
+      - id: shfmt
+        name: shfmt
+        entry: shfmt -w
+        language: system
+        types_or: [shell]
+
+      - id: actionlint
+        name: actionlint
+        entry: actionlint
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+
+      - id: gitleaks
+        name: Gitleaks
+        entry: gitleaks detect --source .
+        language: system
+        pass_filenames: false

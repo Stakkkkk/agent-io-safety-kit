@@ -23,6 +23,8 @@ Use it when an agent frequently:
 - `scripts/doctor.mjs` — a diagnostic command for installed copies.
 - `snippets/` — managed instruction fragments for common agent entry files.
 - `examples/` — small copy-pasteable examples.
+- `docs/external-tools.md` — optional integrations with mature linters, scanners, and validators.
+- `docs/language-policy.md` — why the core stays dependency-free Node.js.
 - `tests/run-tests.mjs` — a self-contained test suite with no npm dependencies.
 
 Design overview: [`00-MECHANISM.md`](00-MECHANISM.md). Deployment guide: [`01-DEPLOYMENT.md`](01-DEPLOYMENT.md).
@@ -53,6 +55,7 @@ Check an installed copy:
 ```sh
 node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --check
 node scripts/doctor.mjs --target /path/to/project --entry AGENTS.md
+node scripts/doctor.mjs --target /path/to/project --entry AGENTS.md --external
 ```
 
 By default, the installer creates or updates a managed block in `AGENTS.md` and copies the kit to `.agent-io-safety/`.
@@ -109,7 +112,10 @@ After installing the kit into a target project, run:
 
 ```sh
 npm run doctor -- --target /path/to/project --entry AGENTS.md
+npm run doctor -- --target /path/to/project --entry AGENTS.md --external
 ```
+
+`--external` only reports optional third-party tools. Missing tools are warnings, not failures.
 
 ## Example: safe command execution
 
@@ -153,6 +159,10 @@ The kit makes fragile operations deterministic:
 - symlink-aware deployment writes.
 
 It does not guess legacy encodings, auto-heal mojibake, process binary formats as text, or override higher-priority system/user/project instructions.
+
+## External tools
+
+This kit is not trying to replace mature linters or scanners. It defines the safety boundary, then lets existing tools do domain-specific work. See [`docs/external-tools.md`](docs/external-tools.md) and [`docs/language-policy.md`](docs/language-policy.md).
 
 ## npm status
 

@@ -50,6 +50,14 @@ node scripts/doctor.mjs --target <project-root> --entry AGENTS.md
 
 `doctor` проверяет Node.js, наличие entry-файла, управляемые маркеры, `MANIFEST.json`, версию, SHA-256 управляемых файлов и базовую текстовую валидность установленной копии.
 
+Для необязательных внешних инструментов:
+
+```text
+node scripts/doctor.mjs --target <project-root> --entry AGENTS.md --external
+```
+
+Отсутствующие внешние инструменты дают предупреждения, но не ошибку. Политика и список рекомендаций описаны в `docs/external-tools.md`.
+
 ## Врезка
 
 Шаблон находится в `snippets/AGENTS.md.fragment`. Установщик заменяет `{{RULE_PATH}}` относительным путём от стартового файла к развёрнутому правилу.

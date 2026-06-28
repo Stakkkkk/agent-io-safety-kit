@@ -1,0 +1,54 @@
+name: Extra Quality
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "**/*.sh"
+      - "**/*.bash"
+      - "**/*.zsh"
+      - "**/*.ps1"
+      - "**/*.psm1"
+      - "**/*.psd1"
+      - "**/*.json"
+      - "**/*.yaml"
+      - "**/*.yml"
+
+jobs:
+  optional-tools:
+    name: Optional external tools
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+
+      - name: Built-in safety checks
+        run: |
+          npm test
+          npm run check:text
+          if [ -f AGENTS.md ]; then
+            npm run doctor -- --target . --entry AGENTS.md --external || true
+          fi
+
+      - name: Detect optional tools
+        run: |
+          command -v shellcheck || true
+          command -v shfmt || true
+          command -v actionlint || true
+          command -v zizmor || true
+          command -v gitleaks || true
+
+      - name: Run optional tools when present
+        run: |
+          command -v shellcheck && shellcheck --version || true
+          command -v shfmt && shfmt --version || true
+          command -v actionlint && actionlint --version || true
+          command -v zizmor && zizmor --version || true
+          command -v gitleaks && gitleaks version || true

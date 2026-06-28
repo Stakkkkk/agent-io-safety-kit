@@ -56,6 +56,7 @@ async function testDeployment(tempRoot) {
   await mkdir(target, { recursive: true });
   const entryPath = path.join(target, "AGENTS.md");
   await writeFile(entryPath, Buffer.from("# Existing\r\n\r\nПривет\r\n", "utf8"));
+  await writeFile(path.join(target, ".editorconfig"), "root = true\n", "utf8");
 
   const first = await run(deployScript, ["--target", target, "--entry", "AGENTS.md"]);
   expectSuccess(first, "first deployment");
@@ -74,6 +75,11 @@ async function testDeployment(tempRoot) {
   const check = await run(deployScript, ["--target", target, "--entry", "AGENTS.md", "--check"]);
   expectSuccess(check, "deployment check");
   expectSuccess(await run(doctorScript, ["--target", target, "--entry", "AGENTS.md"]), "doctor check");
+  const externalDoctor = await run(doctorScript, ["--target", target, "--entry", "AGENTS.md", "--external", "--json"]);
+  expectSuccess(externalDoctor, "external doctor check");
+  const externalChecks = JSON.parse(externalDoctor.stdout);
+  assert.ok(externalChecks.some((checkItem) => checkItem.status === "info" && checkItem.name === "external"));
+  assert.ok(externalChecks.some((checkItem) => checkItem.name === "external:editorconfig-checker"));
 
   const customPath = path.join(target, ".agent-io-safety", "CUSTOM.md");
   await writeFile(customPath, "unmanaged\n", "utf8");
@@ -243,6 +249,8 @@ async function testMetadata() {
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
   assert.ok(packageJson.files.includes("schemas/"));
   assert.ok(packageJson.files.includes("examples/"));
+  assert.ok(packageJson.files.includes("docs/"));
+  assert.ok(packageJson.files.includes("recipes/"));
 }
 
 async function safeCleanup(tempRoot) {

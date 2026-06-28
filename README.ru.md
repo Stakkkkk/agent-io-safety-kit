@@ -21,6 +21,8 @@
 - `scripts/doctor.mjs` — диагностика установленной копии.
 - `snippets/` — управляемые фрагменты инструкций для разных агентских entry-файлов.
 - `examples/` — маленькие примеры для копирования.
+- `docs/external-tools.md` — опциональные интеграции со зрелыми линтерами, сканерами и валидаторами.
+- `docs/language-policy.md` — почему ядро остаётся dependency-free Node.js.
 - `tests/run-tests.mjs` — самодостаточный тестовый набор без внешних зависимостей.
 
 Подробное описание механизма: [`00-MECHANISM.md`](00-MECHANISM.md). Инструкция по развёртыванию: [`01-DEPLOYMENT.md`](01-DEPLOYMENT.md).
@@ -51,6 +53,7 @@ node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md
 ```sh
 node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --check
 node scripts/doctor.mjs --target /path/to/project --entry AGENTS.md
+node scripts/doctor.mjs --target /path/to/project --entry AGENTS.md --external
 ```
 
 По умолчанию установщик создаёт или обновляет управляемый блок в `AGENTS.md` и копирует комплект в `.agent-io-safety/`.
@@ -107,7 +110,10 @@ node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eo
 
 ```sh
 npm run doctor -- --target /path/to/project --entry AGENTS.md
+npm run doctor -- --target /path/to/project --entry AGENTS.md --external
 ```
+
+`--external` только сообщает об опциональных сторонних инструментах. Отсутствующие инструменты дают предупреждения, а не ошибки.
 
 ## Пример: безопасный запуск команды
 
@@ -151,6 +157,10 @@ node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.
 - symlink-aware запись при развёртывании.
 
 Он не угадывает legacy-кодировки, не лечит mojibake автоматически, не обрабатывает бинарные форматы как текст и не заменяет системные/пользовательские инструкции более высокого приоритета.
+
+## Внешние инструменты
+
+Комплект не пытается заменить зрелые линтеры и сканеры. Он определяет safety-boundary, после чего существующие инструменты могут делать domain-specific анализ. См. [`docs/external-tools.md`](docs/external-tools.md) и [`docs/language-policy.md`](docs/language-policy.md).
 
 ## Статус npm
 

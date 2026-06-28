@@ -13,7 +13,7 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 function usage() {
   process.stderr.write(
     "usage: node doctor.mjs [--target dir] [--entry AGENTS.md] [--dest .agent-io-safety] " +
-      "[--json] [--skip-text]\n",
+      "[--json] [--skip-text] [--external]\n",
   );
 }
 
@@ -24,6 +24,7 @@ function parseArgs(argv) {
     dest: ".agent-io-safety",
     json: false,
     skipText: false,
+    external: false,
     help: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -33,6 +34,7 @@ function parseArgs(argv) {
     else if (value === "--dest") options.dest = argv[++index];
     else if (value === "--json") options.json = true;
     else if (value === "--skip-text") options.skipText = true;
+    else if (value === "--external") options.external = true;
     else if (value === "--help" || value === "-h") options.help = true;
     else throw new Error(`unknown option: ${value}`);
   }
@@ -90,6 +92,19 @@ async function collectFiles(root, relative = "") {
   return output;
 }
 
+async function collectProjectFiles(root, relative = "") {
+  const excludes = new Set([".git", ".agent-io-safety", "node_modules", "vendor", "dist", "build", "coverage"]);
+  const directory = path.join(root, relative);
+  const output = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.isDirectory() && excludes.has(entry.name)) continue;
+    const childRelative = path.join(relative, entry.name);
+    if (entry.isDirectory()) output.push(...(await collectProjectFiles(root, childRelative)));
+    else if (entry.isFile()) output.push(toPosix(childRelative));
+  }
+  return output;
+}
+
 async function sourceArtifacts() {
   const mappings = [
     { source: path.join(packageRoot, "VERSION"), destination: "VERSION" },
@@ -130,8 +145,235 @@ async function runNode(script, args, cwd) {
   };
 }
 
+async function runCommand(command, args, cwd, timeoutMs = 5000) {
+  const child = spawn(command, args, {
+    cwd,
+    shell: false,
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const stdout = [];
+  const stderr = [];
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, timeoutMs);
+
+  child.stdout.on("data", (chunk) => stdout.push(chunk));
+  child.stderr.on("data", (chunk) => stderr.push(chunk));
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", (code, signal) => resolve({ code, signal }));
+    });
+    return {
+      ...result,
+      timedOut,
+      stdout: Buffer.concat(stdout).toString("utf8"),
+      stderr: Buffer.concat(stderr).toString("utf8"),
+    };
+  } catch (error) {
+    return { code: undefined, signal: undefined, timedOut, stdout: "", stderr: "", error };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function add(checks, status, name, message, details = undefined) {
   checks.push({ status, name, message, ...(details === undefined ? {} : { details }) });
+}
+
+function firstLine(text) {
+  return text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "";
+}
+
+function hasAny(files, predicate) {
+  return files.some((file) => predicate(file.toLowerCase()));
+}
+
+function hasGitHubWorkflows(files) {
+  return hasAny(files, (file) => /^\.github\/workflows\/.+\.ya?ml$/.test(file));
+}
+
+function hasShellFiles(files) {
+  return hasAny(files, (file) => /\.(sh|bash|zsh)$/.test(file));
+}
+
+function hasPowerShellFiles(files) {
+  return hasAny(files, (file) => /\.(ps1|psm1|psd1)$/.test(file));
+}
+
+function hasJsonSchemas(files) {
+  return hasAny(files, (file) => file.endsWith(".schema.json") || file.includes("/schemas/") || file === "schemas/command-spec.schema.json");
+}
+
+async function addExternalCommandCheck(checks, targetRoot, tool) {
+  const result = await runCommand(tool.command, tool.args, targetRoot);
+  const details = { command: [tool.command, ...tool.args].join(" "), official: tool.official, reason: tool.reason };
+  if (result.error?.code === "ENOENT") {
+    add(checks, "warn", `external:${tool.name}`, `${tool.name} is not installed (${tool.reason})`, details);
+    return;
+  }
+  if (result.error) {
+    add(checks, "warn", `external:${tool.name}`, `${tool.name} could not be checked: ${result.error.message}`, details);
+    return;
+  }
+  if (result.timedOut) {
+    add(checks, "warn", `external:${tool.name}`, `${tool.name} version check timed out`, details);
+    return;
+  }
+  if (result.code === 0 && result.signal === null) {
+    const version = firstLine(`${result.stdout}\n${result.stderr}`);
+    add(checks, "ok", `external:${tool.name}`, `${tool.name} available${version ? `: ${version}` : ""}`, details);
+    return;
+  }
+  add(
+    checks,
+    "warn",
+    `external:${tool.name}`,
+    `${tool.name} command returned ${result.code ?? "unknown"}`,
+    { ...details, stdout: result.stdout.trim(), stderr: result.stderr.trim() },
+  );
+}
+
+async function addPSScriptAnalyzerCheck(checks, targetRoot) {
+  const official = "https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/overview";
+  const script = "if (Get-Module -ListAvailable PSScriptAnalyzer) { (Get-Module -ListAvailable PSScriptAnalyzer | Select-Object -First 1).Version.ToString(); exit 0 } else { exit 1 }";
+  for (const command of ["pwsh", "powershell"]) {
+    const result = await runCommand(command, ["-NoProfile", "-Command", script], targetRoot);
+    if (result.error?.code === "ENOENT") continue;
+    if (result.code === 0 && result.signal === null) {
+      add(
+        checks,
+        "ok",
+        "external:PSScriptAnalyzer",
+        `PSScriptAnalyzer available${firstLine(result.stdout) ? `: ${firstLine(result.stdout)}` : ""}`,
+        { command, official, reason: "recommended for PowerShell files" },
+      );
+      return;
+    }
+  }
+  add(
+    checks,
+    "warn",
+    "external:PSScriptAnalyzer",
+    "PSScriptAnalyzer is not installed or no PowerShell host is available (recommended for PowerShell files)",
+    { official, reason: "recommended for PowerShell files" },
+  );
+}
+
+async function addExternalChecks(checks, targetRoot) {
+  const files = await collectProjectFiles(targetRoot);
+  const tools = [];
+
+  if (hasShellFiles(files)) {
+    tools.push(
+      {
+        name: "ShellCheck",
+        command: "shellcheck",
+        args: ["--version"],
+        official: "https://github.com/koalaman/shellcheck",
+        reason: "recommended for shell scripts",
+      },
+      {
+        name: "shfmt",
+        command: "shfmt",
+        args: ["--version"],
+        official: "https://github.com/mvdan/sh",
+        reason: "recommended for shell script formatting",
+      },
+    );
+  }
+
+  if (files.includes(".editorconfig")) {
+    tools.push({
+      name: "editorconfig-checker",
+      command: "editorconfig-checker",
+      args: ["--version"],
+      official: "https://github.com/editorconfig-checker/editorconfig-checker",
+      reason: "recommended when .editorconfig exists",
+    });
+  }
+
+  if (hasGitHubWorkflows(files)) {
+    tools.push(
+      {
+        name: "actionlint",
+        command: "actionlint",
+        args: ["--version"],
+        official: "https://github.com/rhysd/actionlint",
+        reason: "recommended for GitHub Actions workflows",
+      },
+      {
+        name: "zizmor",
+        command: "zizmor",
+        args: ["--version"],
+        official: "https://github.com/zizmorcore/zizmor",
+        reason: "recommended for GitHub Actions security review",
+      },
+    );
+  }
+
+  if (await exists(path.join(targetRoot, ".git"))) {
+    tools.push(
+      {
+        name: "Gitleaks",
+        command: "gitleaks",
+        args: ["version"],
+        official: "https://github.com/gitleaks/gitleaks",
+        reason: "recommended before publishing repositories",
+      },
+      {
+        name: "TruffleHog",
+        command: "trufflehog",
+        args: ["--version"],
+        official: "https://github.com/trufflesecurity/trufflehog",
+        reason: "recommended for deeper secret scanning",
+      },
+    );
+  }
+
+  if (hasJsonSchemas(files)) {
+    tools.push(
+      {
+        name: "Ajv",
+        command: "ajv",
+        args: ["--version"],
+        official: "https://github.com/ajv-validator/ajv",
+        reason: "optional JSON Schema validator",
+      },
+      {
+        name: "check-jsonschema",
+        command: "check-jsonschema",
+        args: ["--version"],
+        official: "https://github.com/python-jsonschema/check-jsonschema",
+        reason: "optional JSON Schema validator",
+      },
+    );
+  }
+
+  if (files.includes(".pre-commit-config.yaml") || files.includes(".pre-commit-config.yml")) {
+    tools.push({
+      name: "pre-commit",
+      command: "pre-commit",
+      args: ["--version"],
+      official: "https://pre-commit.com/",
+      reason: "recommended when pre-commit config exists",
+    });
+  }
+
+  add(
+    checks,
+    "info",
+    "external",
+    `scanned ${files.length} project files for optional external-tool recommendations`,
+    { docs: "docs/external-tools.md" },
+  );
+
+  for (const tool of tools) await addExternalCommandCheck(checks, targetRoot, tool);
+  if (hasPowerShellFiles(files)) await addPSScriptAnalyzerCheck(checks, targetRoot);
 }
 
 async function doctor(options) {
@@ -248,6 +490,8 @@ async function doctor(options) {
     }
   }
 
+  if (options.external) await addExternalChecks(checks, targetRoot);
+
   return checks;
 }
 
@@ -261,7 +505,7 @@ try {
     if (options.json) process.stdout.write(`${JSON.stringify(checks, null, 2)}\n`);
     else {
       for (const check of checks) {
-        const label = check.status === "ok" ? "OK" : "ERROR";
+        const label = check.status === "ok" ? "OK" : check.status === "warn" ? "WARN" : check.status === "info" ? "INFO" : "ERROR";
         process.stdout.write(`${label} ${check.name}: ${check.message}\n`);
       }
     }
