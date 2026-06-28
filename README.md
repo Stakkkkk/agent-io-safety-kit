@@ -59,16 +59,16 @@ By default, the installer creates or updates a managed block in `AGENTS.md` and 
 
 ## Instruction for agents
 
-Yes: you should put a short agent-facing instruction in the project README or entry file. The most important rule is not “always use this tool”; it is “stop guessing after the first quoting or encoding failure and switch to the deterministic path”.
+Put the operative instruction in the agent entry file. The README can document the policy, but the entry file is where agents are expected to read and follow it. The most important rule is not “always use this tool”; it is “stop guessing after the first quoting or encoding failure and switch to the deterministic path”.
 
-Minimal instruction to copy into an agent entry file:
+Minimal instruction for a root-level agent entry file:
 
 ```md
 ## Shell and text I/O safety
 
 Before the first operation that uses shell, reads or writes text, passes user-controlled values, paths, JSON/YAML/SQL/regex, non-ASCII characters, encodings, BOM, or line endings, read and follow `.agent-io-safety/RULE.md`.
 
-Load the referenced skill before the matching operation:
+Read the referenced skill file before the matching operation:
 
 - `.agent-io-safety/skills/safe-shell-io/SKILL.md` for complex commands, user values, quoting, shell metacharacters, structured payloads, stdin/stdout, or command-encoding failures.
 - `.agent-io-safety/skills/safe-text-io/SKILL.md` for text files, UTF-8/UTF-16, BOM, line endings, PowerShell 5.1, or mojibake.
