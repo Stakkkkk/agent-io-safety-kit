@@ -4,10 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.1.2 - 2026-06-29
+
 - Added field notes for real shell/text/remote I/O traps.
 - Added remote I/O recipes for SSH, rsync, here-doc, SFTP rename, and long-running remote operations.
 - Added PowerShell `Select-Object -Index` and remote script boundary examples.
 - Added `safe-text-replace-ascii-bytes` for ASCII-safe byte replacement in non-UTF-8 or unknown-encoding files.
+- Added explicit agent routing from the central rule and safe-shell skill to the new recipes and examples.
+- Included `docs/` and `examples/` in deployed `.agent-io-safety/` copies so referenced recipes are available to target agents.
 - Documented floating Docker tag migration risk.
 
 ## 0.1.1 - 2026-06-29

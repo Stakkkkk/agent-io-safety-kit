@@ -45,6 +45,18 @@
 - Используйте project skills, чтобы решить, какая операция нужна; используйте этот комплект, чтобы выполнить shell/text I/O безопасно.
 - Модель слоёв описана в `docs/ru/project-skills-layering.md`.
 
+## Рецепты из практики
+
+Читайте `docs/ru/field-notes.md`, если операция затрагивает одну из известных ловушек:
+
+- terminal/tool output показывает mojibake, но байты файла могут быть корректными;
+- используются SSH, rsync, SFTP, remote shell, here-doc или долгие remote-операции;
+- используются PowerShell ranges или выборка окон строк;
+- в non-UTF-8 файле нужна ASCII-only замена байтов;
+- мигрируются или сохраняются плавающие Docker tags.
+
+Читайте `docs/ru/remote-io-recipes.md` перед составлением многоуровневых remote-команд. Используйте `examples/powershell-select-object.md` для PowerShell range syntax и `examples/remote-script-boundaries.md` перед встраиванием скриптов в строки host-языка.
+
 ## PowerShell
 
 - Всегда учитывать различие Windows PowerShell 5.1 и PowerShell 7+.

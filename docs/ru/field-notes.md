@@ -35,7 +35,7 @@ node skills/safe-text-io/scripts/inspect-text.mjs path/to/file.md
 - Base64 для data payload;
 - фиксированные и маленькие remote command strings.
 
-См. `docs/remote-io-recipes.md`.
+См. `docs/ru/remote-io-recipes.md`.
 
 ## Paramiko SFTP rename может не перезаписать файл
 

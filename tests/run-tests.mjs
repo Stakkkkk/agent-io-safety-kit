@@ -71,6 +71,21 @@ async function testDeployment(tempRoot) {
   const firstManifest = JSON.parse(await readFile(path.join(target, ".agent-io-safety", "MANIFEST.json"), "utf8"));
   assert.equal(firstManifest.language, "en", "default deployment language changed");
   assert.match(await readFile(path.join(target, ".agent-io-safety", "RULE.md"), "utf8"), /Safe shell and text I\/O rule/);
+  assert.match(
+    await readFile(path.join(target, ".agent-io-safety", "docs", "field-notes.md"), "utf8"),
+    /real I\/O traps/,
+    "field notes were not deployed",
+  );
+  assert.match(
+    await readFile(path.join(target, ".agent-io-safety", "docs", "remote-io-recipes.md"), "utf8"),
+    /Remote I\/O recipes/,
+    "remote I/O recipes were not deployed",
+  );
+  assert.match(
+    await readFile(path.join(target, ".agent-io-safety", "examples", "powershell-select-object.md"), "utf8"),
+    /Select-Object/,
+    "PowerShell example was not deployed",
+  );
 
   const beforeSecond = digest(await readFile(entryPath));
   const second = await run(deployScript, ["--target", target, "--entry", "AGENTS.md"]);
@@ -173,6 +188,16 @@ async function testDeployment(tempRoot) {
   assert.match(await readFile(path.join(russianTarget, ".agent-io-safety", "RULE.md"), "utf8"), /Правило безопасного shell/);
   const russianManifest = JSON.parse(await readFile(path.join(russianTarget, ".agent-io-safety", "MANIFEST.json"), "utf8"));
   assert.equal(russianManifest.language, "ru");
+  assert.match(
+    await readFile(path.join(russianTarget, ".agent-io-safety", "RULE.md"), "utf8"),
+    /docs\/ru\/field-notes\.md/,
+    "Russian rule does not route to Russian field notes",
+  );
+  assert.match(
+    await readFile(path.join(russianTarget, ".agent-io-safety", "docs", "ru", "field-notes.md"), "utf8"),
+    /SSH\/rsync/,
+    "Russian field notes were not deployed",
+  );
   expectSuccess(await run(deployScript, ["--target", russianTarget, "--entry", "AGENTS.md", "--lang", "ru", "--check"]), "Russian deployment check");
   expectSuccess(await run(doctorScript, ["--target", russianTarget, "--entry", "AGENTS.md", "--lang", "ru"]), "Russian doctor check");
   expectFailure(await run(deployScript, ["--target", russianTarget, "--entry", "AGENTS.md", "--lang", "en", "--check"]), "language mismatch check");
@@ -349,7 +374,7 @@ async function testMetadata() {
   assert.equal(schema.properties.command.type, "string");
 
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
-  assert.equal(packageJson.version, "0.1.1");
+  assert.equal(packageJson.version, "0.1.2");
   assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
   assert.equal(packageJson.bin["safe-text-replace-ascii-bytes"], "skills/safe-text-io/scripts/replace-ascii-bytes.mjs");
@@ -363,11 +388,12 @@ async function testMetadata() {
 }
 
 async function testReleaseNotes() {
-  const notes = await run(releaseNotesScript, ["v0.1.1"]);
+  const notes = await run(releaseNotesScript, ["v0.1.2"]);
   expectSuccess(notes, "release notes extraction");
-  assert.match(notes.stdout, /deploy --fix-entry-text/);
-  assert.match(notes.stdout, /Windows \+ PowerShell \+ SSH/);
-  assert.doesNotMatch(notes.stdout, /0\.1\.0/);
+  assert.match(notes.stdout, /field notes/);
+  assert.match(notes.stdout, /safe-text-replace-ascii-bytes/);
+  assert.match(notes.stdout, /deployed `.agent-io-safety\/` copies/);
+  assert.doesNotMatch(notes.stdout, /0\.1\.1/);
 }
 
 async function safeCleanup(tempRoot) {

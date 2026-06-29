@@ -186,6 +186,21 @@ async function sourceArtifacts(lang = "en") {
     { source: path.join(packageRoot, "VERSION"), destination: "VERSION" },
     { source: await localizedSource(path.join(packageRoot, "RULE.md"), lang), destination: "RULE.md" },
   ];
+
+  for (const relative of await collectFiles(path.join(packageRoot, "docs"))) {
+    mappings.push({
+      source: path.join(packageRoot, "docs", relative),
+      destination: path.join("docs", relative),
+    });
+  }
+
+  for (const relative of await collectFiles(path.join(packageRoot, "examples"))) {
+    mappings.push({
+      source: path.join(packageRoot, "examples", relative),
+      destination: path.join("examples", relative),
+    });
+  }
+
   const skillsRoot = path.join(packageRoot, "skills");
   for (const relative of await collectFiles(skillsRoot)) {
     if (relative.endsWith(".ru.md")) continue;

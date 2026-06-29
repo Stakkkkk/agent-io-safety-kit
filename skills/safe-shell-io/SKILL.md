@@ -21,6 +21,18 @@ After the first escaping or parsing failure, switch immediately to option 3. Do 
 - Do not use `eval`, `Invoke-Expression`, or `shell: true`.
 - Do not put secrets in diagnostic output or specs that will be committed.
 
+## Remote and PowerShell edge cases
+
+Before SSH, rsync, SFTP, remote shell, here-doc, or long-running remote operations, read `../../docs/field-notes.md` and `../../docs/remote-io-recipes.md`.
+
+Apply these routing rules:
+
+- use `ssh -n` only when the SSH process must not consume parent stdin; do not put `ssh -n` inside `rsync -e`;
+- for complex remote scripts, upload a script file, stream bytes through stdin, or pass data as a file/Base64 payload instead of building multi-layer here-doc strings;
+- for long SSH/rsync work, prefer remote supervision plus a log and polling instead of keeping the job tied to the local client;
+- for PowerShell ranges, read `../../examples/powershell-select-object.md` and use `-Index (94..112)` or `-Skip/-First`;
+- before embedding a script in a host-language string, read `../../examples/remote-script-boundaries.md`.
+
 ## Run through a spec
 
 Create the spec with a structured editor or patch API as UTF-8 without BOM:

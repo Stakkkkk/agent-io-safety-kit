@@ -45,6 +45,18 @@ Do not guess a legacy encoding and do not rewrite a file after decoding with rep
 - Use project skills to decide what operation should happen; use this kit to decide how to perform the shell/text I/O safely.
 - See `docs/project-skills-layering.md` for the layering model.
 
+## Field-tested recipes
+
+Read `docs/field-notes.md` when an operation touches any of these known traps:
+
+- terminal or tool output shows mojibake but file bytes may still be valid;
+- SSH, rsync, SFTP, remote shell, here-doc, or long-running remote operations are involved;
+- PowerShell ranges or line windows are involved;
+- a non-UTF-8 file needs an ASCII-only byte replacement;
+- floating Docker tags are being migrated or preserved.
+
+Read `docs/remote-io-recipes.md` before composing multi-layer remote commands. Use `examples/powershell-select-object.md` for PowerShell range syntax and `examples/remote-script-boundaries.md` before embedding scripts inside local-language strings.
+
 ## PowerShell
 
 - Always account for differences between Windows PowerShell 5.1 and PowerShell 7+.

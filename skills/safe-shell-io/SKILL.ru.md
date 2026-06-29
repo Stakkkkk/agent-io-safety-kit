@@ -21,6 +21,18 @@ description: Execute external commands with exact argv semantics and without acc
 - Не использовать `eval`, `Invoke-Expression` и `shell: true`.
 - Не помещать секреты в диагностический вывод или spec, который будет сохранён в репозитории.
 
+## Remote и PowerShell edge cases
+
+Перед SSH, rsync, SFTP, remote shell, here-doc или долгими remote-операциями прочитайте `../../docs/ru/field-notes.md` и `../../docs/ru/remote-io-recipes.md`.
+
+Применяйте эти правила маршрутизации:
+
+- используйте `ssh -n` только когда SSH-процесс не должен читать stdin родительского процесса; не кладите `ssh -n` внутрь `rsync -e`;
+- для сложных remote scripts загружайте script file, передавайте байты через stdin или передавайте данные файлом/Base64 payload вместо многоуровневых here-doc strings;
+- для долгих SSH/rsync-задач предпочитайте remote supervision + log + polling, а не привязку процесса к локальному клиенту;
+- для PowerShell ranges прочитайте `../../examples/powershell-select-object.md` и используйте `-Index (94..112)` или `-Skip/-First`;
+- перед встраиванием скрипта в строку host-языка прочитайте `../../examples/remote-script-boundaries.md`.
+
 ## Запустить через spec
 
 Создать spec структурированным редактором или patch API в UTF-8 без BOM:
