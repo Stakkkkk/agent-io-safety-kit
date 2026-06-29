@@ -36,6 +36,18 @@ If a managed copy was edited by hand, an update stops. After reviewing the chang
 node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --force
 ```
 
+## Entry-file text normalization
+
+By default, the installer preserves UTF-8 BOM and line-ending style of an existing entry file.
+
+To explicitly normalize only the entry file to UTF-8 without BOM and LF:
+
+```text
+node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --fix-entry-text
+```
+
+This option does not rewrite other project files.
+
 ## Language
 
 English is the canonical language:

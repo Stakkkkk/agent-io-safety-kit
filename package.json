@@ -1,6 +1,6 @@
 {
   "name": "agent-io-safety-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Portable rules, skills, and scripts for safer agent shell and text I/O.",
   "license": "MIT",
   "type": "module",
@@ -27,7 +27,8 @@
     "test": "node tests/run-tests.mjs",
     "check:text": "node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .",
     "doctor": "node scripts/doctor.mjs",
-    "pack:dry-run": "npm pack --dry-run"
+    "pack:dry-run": "npm pack --dry-run",
+    "release:notes": "node scripts/release-notes.mjs"
   },
   "bin": {
     "agent-io-safety-kit": "scripts/deploy.mjs",

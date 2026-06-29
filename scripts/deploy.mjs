@@ -17,7 +17,8 @@ function fail(message, code = 2) {
 function usage() {
   process.stderr.write(
     "usage: node deploy.mjs [--target dir] [--entry AGENTS.md] " +
-      "[--dest .agent-io-safety] [--lang en|ru] [--dry-run|--check] [--force] [--fragment file]\n",
+      "[--dest .agent-io-safety] [--lang en|ru] [--dry-run|--check] [--force] " +
+      "[--fragment file] [--fix-entry-text]\n",
   );
 }
 
@@ -31,6 +32,7 @@ function parseArgs(argv) {
     force: false,
     fragment: undefined,
     lang: "en",
+    fixEntryText: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
@@ -42,6 +44,7 @@ function parseArgs(argv) {
     else if (value === "--dry-run") options.dryRun = true;
     else if (value === "--check") options.check = true;
     else if (value === "--force") options.force = true;
+    else if (value === "--fix-entry-text") options.fixEntryText = true;
     else if (value === "--help" || value === "-h") options.help = true;
     else throw new Error(`unknown option: ${value}`);
   }
@@ -264,17 +267,21 @@ async function buildState(options) {
   const ruleLink = ruleRelative.startsWith(".") ? ruleRelative : `./${ruleRelative}`;
   const renderedFragment = template.replaceAll("{{RULE_PATH}}", ruleLink);
 
-  let entryText = "";
-  let entryHasBom = false;
+  let currentEntryText = "";
+  let entryTextForUpdate = "";
+  let currentEntryHasBom = false;
+  let expectedEntryHasBom = false;
   let entryEol = "\n";
   if (await exists(entryPath)) {
     const decoded = decodeUtf8(await readFile(entryPath), "entry file");
-    entryText = decoded.text;
-    entryHasBom = decoded.hasBom;
-    entryEol = detectEol(entryText);
+    currentEntryText = decoded.text;
+    currentEntryHasBom = decoded.hasBom;
+    expectedEntryHasBom = options.fixEntryText ? false : decoded.hasBom;
+    entryTextForUpdate = options.fixEntryText ? normalizeLf(decoded.text) : decoded.text;
+    entryEol = options.fixEntryText ? "\n" : detectEol(decoded.text);
   }
-  const expectedEntryText = updateEntry(entryText, renderedFragment, entryEol);
-  const entryChanged = expectedEntryText !== entryText;
+  const expectedEntryText = updateEntry(entryTextForUpdate, renderedFragment, entryEol);
+  const entryChanged = expectedEntryText !== currentEntryText || expectedEntryHasBom !== currentEntryHasBom;
 
   const manifest = {
     schemaVersion: 1,
@@ -298,7 +305,7 @@ async function buildState(options) {
     removals,
     entryChanged,
     expectedEntryText,
-    entryHasBom,
+    entryHasBom: expectedEntryHasBom,
     entryEol,
     manifestChanged: currentManifestHash !== expectedManifestHash,
   };

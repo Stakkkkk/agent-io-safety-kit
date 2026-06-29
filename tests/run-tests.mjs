@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const deployScript = path.join(packageRoot, "scripts", "deploy.mjs");
 const doctorScript = path.join(packageRoot, "scripts", "doctor.mjs");
+const releaseNotesScript = path.join(packageRoot, "scripts", "release-notes.mjs");
 const runnerScript = path.join(packageRoot, "skills", "safe-shell-io", "scripts", "run-from-spec.mjs");
 const inspectScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "inspect-text.mjs");
 const transcodeScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "transcode-text.mjs");
@@ -133,6 +134,31 @@ async function testDeployment(tempRoot) {
     await run(doctorScript, ["--target", bomTarget, "--entry", ".github/copilot-instructions.md"]),
     "nested BOM doctor check",
   );
+  const bomDoctor = await run(doctorScript, ["--target", bomTarget, "--entry", ".github/copilot-instructions.md", "--json"]);
+  expectSuccess(bomDoctor, "nested BOM doctor JSON check");
+  const bomDoctorChecks = JSON.parse(bomDoctor.stdout);
+  assert.ok(bomDoctorChecks.some((item) => item.status === "warn" && item.name === "entry-text" && item.message.includes("UTF-8 BOM")));
+
+  const mixedTarget = path.join(tempRoot, "mixed-entry-project");
+  const mixedEntry = path.join(mixedTarget, "AGENTS.md");
+  await mkdir(mixedTarget, { recursive: true });
+  await writeFile(mixedEntry, "# Existing\r\nline two\n", "utf8");
+  expectSuccess(await run(deployScript, ["--target", mixedTarget, "--entry", "AGENTS.md"]), "mixed EOL deployment");
+  const mixedDoctor = await run(doctorScript, ["--target", mixedTarget, "--entry", "AGENTS.md", "--json"]);
+  expectSuccess(mixedDoctor, "mixed EOL doctor JSON check");
+  const mixedDoctorChecks = JSON.parse(mixedDoctor.stdout);
+  assert.ok(mixedDoctorChecks.some((item) => item.status === "warn" && item.name === "entry-text" && item.message.includes("mixed line endings")));
+
+  const fixTarget = path.join(tempRoot, "fix-entry-project");
+  const fixEntry = path.join(fixTarget, "AGENTS.md");
+  await mkdir(fixTarget, { recursive: true });
+  await writeFile(fixEntry, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("# Existing\r\nline two\r\n", "utf8")]));
+  expectSuccess(await run(deployScript, ["--target", fixTarget, "--entry", "AGENTS.md", "--fix-entry-text"]), "fix entry text deployment");
+  const fixedBytes = await readFile(fixEntry);
+  assert.notDeepEqual([...fixedBytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], "fix-entry-text retained BOM");
+  const fixedText = fixedBytes.toString("utf8");
+  assert.equal(fixedText.includes("\r"), false, "fix-entry-text retained CR line endings");
+  expectSuccess(await run(deployScript, ["--target", fixTarget, "--entry", "AGENTS.md", "--fix-entry-text", "--check"]), "fix entry text check");
 
   const claudeTarget = path.join(tempRoot, "claude-project");
   await mkdir(claudeTarget, { recursive: true });
@@ -250,6 +276,7 @@ async function testTextTools(tempRoot) {
 async function testCliHelp() {
   expectSuccess(await run(deployScript, ["--help"]), "deploy help");
   expectSuccess(await run(doctorScript, ["--help"]), "doctor help");
+  expectSuccess(await run(releaseNotesScript, ["--help"]), "release notes help");
   expectSuccess(await run(runnerScript, ["--help"]), "runner help");
   expectSuccess(await run(inspectScript, ["--help"]), "inspect help");
   expectSuccess(await run(transcodeScript, ["--help"]), "transcode help");
@@ -261,6 +288,7 @@ async function testMetadata() {
   assert.equal(schema.properties.command.type, "string");
 
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
+  assert.equal(packageJson.version, "0.1.1");
   assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
   assert.ok(packageJson.files.includes("schemas/"));
@@ -270,6 +298,14 @@ async function testMetadata() {
   assert.ok(packageJson.files.includes("RULE.ru.md"));
   assert.ok(packageJson.files.includes("00-MECHANISM.ru.md"));
   assert.ok(packageJson.files.includes("01-DEPLOYMENT.ru.md"));
+}
+
+async function testReleaseNotes() {
+  const notes = await run(releaseNotesScript, ["v0.1.1"]);
+  expectSuccess(notes, "release notes extraction");
+  assert.match(notes.stdout, /deploy --fix-entry-text/);
+  assert.match(notes.stdout, /Windows \+ PowerShell \+ SSH/);
+  assert.doesNotMatch(notes.stdout, /0\.1\.0/);
 }
 
 async function safeCleanup(tempRoot) {
@@ -287,6 +323,7 @@ try {
   expectSuccess(bundleCheck, "bundle text policy");
   await testCliHelp();
   await testMetadata();
+  await testReleaseNotes();
   await testDeployment(tempRoot);
   await testRunner(tempRoot);
   await testTextTools(tempRoot);

@@ -26,6 +26,7 @@ Use it when an agent frequently:
 - `docs/external-tools.md` — optional integrations with mature linters, scanners, and validators.
 - `docs/language-policy.md` — why the core stays dependency-free Node.js.
 - `docs/localization.md` — how English canonical files and Russian localization are maintained.
+- `docs/project-skills-layering.md` — how to use the kit next to existing project/domain skills.
 - `tests/run-tests.mjs` — a self-contained test suite with no npm dependencies.
 
 Design overview: [`00-MECHANISM.md`](00-MECHANISM.md). Deployment guide: [`01-DEPLOYMENT.md`](01-DEPLOYMENT.md).
@@ -75,6 +76,14 @@ Install Russian localized agent instructions:
 ```sh
 node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang ru
 ```
+
+Normalize the entry file explicitly during deployment:
+
+```sh
+node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --fix-entry-text
+```
+
+This removes UTF-8 BOM from the entry file and normalizes its line endings to LF. It is opt-in because the default installer preserves existing entry-file bytes where possible.
 
 Check an installed copy:
 
@@ -189,6 +198,10 @@ It does not guess legacy encodings, auto-heal mojibake, process binary formats a
 ## External tools
 
 This kit is not trying to replace mature linters or scanners. It defines the safety boundary, then lets existing tools do domain-specific work. See [`docs/external-tools.md`](docs/external-tools.md) and [`docs/language-policy.md`](docs/language-policy.md).
+
+## Layering with project skills
+
+The kit does not replace project-specific or domain-specific instructions. It sits below them and handles shell/text I/O boundaries. See [`docs/project-skills-layering.md`](docs/project-skills-layering.md).
 
 ## npm status
 

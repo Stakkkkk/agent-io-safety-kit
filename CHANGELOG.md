@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 
 Nothing yet.
 
+## 0.1.1 - 2026-06-29
+
+- Added explicit `deploy --fix-entry-text` mode for entry-file UTF-8-no-BOM/LF normalization.
+- Added non-fatal `doctor` warnings for entry-file UTF-8 BOM and mixed line endings.
+- Added a Windows + PowerShell + SSH example for the local argv / remote shell boundary.
+- Documented how Agent I/O Safety Kit layers with existing project/domain skills.
+- Changed the release workflow to publish notes for the tagged changelog section only.
+
 ## 0.1.0 - 2026-06-28
 
 Initial public release.

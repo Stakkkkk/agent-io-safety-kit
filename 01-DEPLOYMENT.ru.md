@@ -34,6 +34,18 @@ node scripts/deploy.mjs --target <project-root> --entry AGENTS.md
 node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --force
 ```
 
+## Нормализация текста entry-файла
+
+По умолчанию установщик сохраняет UTF-8 BOM и стиль окончаний строк существующего entry-файла.
+
+Чтобы явно нормализовать только entry-файл к UTF-8 без BOM и LF:
+
+```text
+node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --fix-entry-text
+```
+
+Этот флаг не переписывает другие файлы проекта.
+
 ## Язык
 
 Английский — канонический язык:

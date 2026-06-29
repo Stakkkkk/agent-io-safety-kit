@@ -24,6 +24,7 @@
 - `docs/ru/external-tools.md` — опциональные интеграции со зрелыми линтерами, сканерами и валидаторами.
 - `docs/ru/language-policy.md` — почему ядро остаётся dependency-free Node.js.
 - `docs/ru/localization.md` — как поддерживаются английские canonical-файлы и русская локализация.
+- `docs/ru/project-skills-layering.md` — как использовать kit рядом с существующими project/domain skills.
 - `tests/run-tests.mjs` — самодостаточный тестовый набор без внешних зависимостей.
 
 Подробное описание механизма: [`00-MECHANISM.ru.md`](00-MECHANISM.ru.md). Инструкция по развёртыванию: [`01-DEPLOYMENT.ru.md`](01-DEPLOYMENT.ru.md).
@@ -73,6 +74,14 @@ node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md
 ```sh
 node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang ru
 ```
+
+Явно нормализовать entry-файл при развёртывании:
+
+```sh
+node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --fix-entry-text
+```
+
+Этот флаг удаляет UTF-8 BOM из entry-файла и нормализует окончания строк к LF. Он включается только явно, потому что default-установщик по возможности сохраняет существующие байты entry-файла.
 
 Проверить установленную копию:
 
@@ -187,6 +196,10 @@ node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.
 ## Внешние инструменты
 
 Комплект не пытается заменить зрелые линтеры и сканеры. Он определяет safety-boundary, после чего существующие инструменты могут делать domain-specific анализ. См. [`docs/ru/external-tools.md`](docs/ru/external-tools.md) и [`docs/ru/language-policy.md`](docs/ru/language-policy.md).
+
+## Слои рядом с project skills
+
+Комплект не заменяет проектные или предметные инструкции. Он находится ниже уровнем и отвечает за shell/text I/O границы. См. [`docs/ru/project-skills-layering.md`](docs/ru/project-skills-layering.md).
 
 ## Статус npm
 

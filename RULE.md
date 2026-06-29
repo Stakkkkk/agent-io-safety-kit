@@ -39,6 +39,12 @@ Do not guess a legacy encoding and do not rewrite a file after decoding with rep
 - Encoding detectors are diagnostic hints only. Do not rewrite a file based on probabilistic detection without an explicit user decision.
 - See `docs/external-tools.md` for recommended tools.
 
+## Project skills
+
+- This kit does not replace project-specific or domain-specific skills. It sits below them and controls shell/text I/O boundaries.
+- Use project skills to decide what operation should happen; use this kit to decide how to perform the shell/text I/O safely.
+- See `docs/project-skills-layering.md` for the layering model.
+
 ## PowerShell
 
 - Always account for differences between Windows PowerShell 5.1 and PowerShell 7+.

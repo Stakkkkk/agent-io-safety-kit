@@ -84,6 +84,15 @@ function decodeUtf8(bytes, label, { allowBom = true } = {}) {
   }
 }
 
+function lineEndings(text) {
+  const crlf = (text.match(/\r\n/g) ?? []).length;
+  const remainder = text.replace(/\r\n/g, "");
+  const lf = (remainder.match(/\n/g) ?? []).length;
+  const cr = (remainder.match(/\r/g) ?? []).length;
+  const kinds = [["crlf", crlf], ["lf", lf], ["cr", cr]].filter(([, count]) => count > 0);
+  return { crlf, lf, cr, style: kinds.length === 0 ? "none" : kinds.length === 1 ? kinds[0][0] : "mixed" };
+}
+
 async function collectFiles(root, relative = "") {
   const directory = path.join(root, relative);
   const output = [];
@@ -411,6 +420,7 @@ async function doctor(options) {
   if (await exists(entryPath)) {
     try {
       const entry = decodeUtf8(await readFile(entryPath), "entry file");
+      const entryEol = lineEndings(entry.text);
       const hasBegin = entry.text.includes(BEGIN_MARKER);
       const hasEnd = entry.text.includes(END_MARKER);
       const hasRuleLink = entry.text.includes(`${toPosix(options.dest)}/RULE.md`) || entry.text.includes("RULE.md");
@@ -422,6 +432,18 @@ async function doctor(options) {
           "entry",
           `${path.relative(targetRoot, entryPath)} is missing managed markers or RULE.md link`,
           { hasBegin, hasEnd, hasRuleLink },
+        );
+      }
+      if (entry.hasBom) {
+        add(checks, "warn", "entry-text", `${path.relative(targetRoot, entryPath)} has UTF-8 BOM`);
+      }
+      if (entryEol.style === "mixed") {
+        add(
+          checks,
+          "warn",
+          "entry-text",
+          `${path.relative(targetRoot, entryPath)} has mixed line endings`,
+          entryEol,
         );
       }
     } catch (error) {
