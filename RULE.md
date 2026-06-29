@@ -19,7 +19,7 @@ Determine text format in this order:
 3. `.editorconfig`, `.gitattributes`, tool configuration, and existing file bytes;
 4. if no policy exists — UTF-8 without BOM and LF for new text.
 
-Do not guess a legacy encoding and do not rewrite a file after decoding with replacement characters. When ambiguous, stop the conversion, report the observed bytes/BOM, and ask for a decision.
+Do not guess a legacy encoding and do not rewrite a file after decoding with replacement characters. If a non-UTF-8 or unknown-encoding file only needs an ASCII byte sequence changed, prefer `safe-text-io/scripts/replace-ascii-bytes.mjs` over whole-file text decoding. When ambiguous, stop the conversion, report the observed bytes/BOM, and ask for a decision.
 
 ## Safe work methods
 
@@ -28,7 +28,7 @@ Do not guess a legacy encoding and do not rewrite a file after decoding with rep
 3. Do not nest `sh -c`, `cmd /c`, `powershell -Command`, or equivalent wrappers inside an already-running shell unless unavoidable.
 4. Do not interpolate user values into a command line, script, regex, or JSON.
 5. For complex argv, create a UTF-8 JSON spec and run `safe-shell-io/scripts/run-from-spec.mjs`.
-6. For encoding analysis and transcoding, use `safe-text-io` scripts; do not rely on shell defaults.
+6. For encoding analysis, transcoding, and ASCII-safe byte replacement, use `safe-text-io` scripts; do not rely on shell defaults.
 7. After the first quoting, parsing, or mojibake failure, stop trying variants and switch to the deterministic path from the skills.
 
 ## External tools

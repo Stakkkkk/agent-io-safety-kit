@@ -14,6 +14,7 @@ const doctorScript = path.join(packageRoot, "scripts", "doctor.mjs");
 const releaseNotesScript = path.join(packageRoot, "scripts", "release-notes.mjs");
 const runnerScript = path.join(packageRoot, "skills", "safe-shell-io", "scripts", "run-from-spec.mjs");
 const inspectScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "inspect-text.mjs");
+const replaceAsciiScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "replace-ascii-bytes.mjs");
 const transcodeScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "transcode-text.mjs");
 const schemaPath = path.join(packageRoot, "schemas", "command-spec.schema.json");
 
@@ -271,6 +272,65 @@ async function testTextTools(tempRoot) {
   const normalizedBytes = await readFile(normalized);
   assert.notDeepEqual([...normalizedBytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], "transcode retained BOM");
   assert.equal(normalizedBytes.toString("utf8"), "Привет\n");
+
+  const legacy = path.join(textRoot, "legacy.bin");
+  const replaced = path.join(textRoot, "legacy-replaced.bin");
+  await writeFile(
+    legacy,
+    Buffer.concat([
+      Buffer.from([0xff, 0xfe, 0x80]),
+      Buffer.from("prefix old/path old/path suffix", "ascii"),
+      Buffer.from([0x81, 0x82]),
+    ]),
+  );
+  expectSuccess(
+    await run(replaceAsciiScript, [
+      "--input", legacy,
+      "--output", replaced,
+      "--search", "old/path",
+      "--replace", "new/path",
+      "--count", "1",
+    ]),
+    "ASCII byte replacement",
+  );
+  const replacedBytes = await readFile(replaced);
+  assert.deepEqual([...replacedBytes.subarray(0, 3)], [0xff, 0xfe, 0x80], "byte replacement changed prefix bytes");
+  assert.deepEqual([...replacedBytes.subarray(-2)], [0x81, 0x82], "byte replacement changed suffix bytes");
+  assert.match(replacedBytes.toString("latin1"), /new\/path old\/path/, "byte replacement did not limit replacement count");
+
+  const checkDiff = await run(replaceAsciiScript, [
+    "--input", legacy,
+    "--in-place",
+    "--search", "old/path",
+    "--replace", "new/path",
+    "--check",
+  ]);
+  expectFailure(checkDiff, "ASCII byte replacement check diff");
+  assert.match(checkDiff.stdout, /DIFF/);
+
+  expectSuccess(
+    await run(replaceAsciiScript, [
+      "--input", legacy,
+      "--in-place",
+      "--search", "old/path",
+      "--replace", "new/path",
+    ]),
+    "ASCII byte replacement in place",
+  );
+  const checkOk = await run(replaceAsciiScript, [
+    "--input", legacy,
+    "--in-place",
+    "--search", "old/path",
+    "--replace", "new/path",
+    "--check",
+  ]);
+  expectSuccess(checkOk, "ASCII byte replacement check ok");
+  assert.match(checkOk.stdout, /OK/);
+
+  expectFailure(
+    await run(replaceAsciiScript, ["--input", legacy, "--in-place", "--search", "путь", "--replace", "path"]),
+    "ASCII byte replacement rejects non-ASCII search",
+  );
 }
 
 async function testCliHelp() {
@@ -279,6 +339,7 @@ async function testCliHelp() {
   expectSuccess(await run(releaseNotesScript, ["--help"]), "release notes help");
   expectSuccess(await run(runnerScript, ["--help"]), "runner help");
   expectSuccess(await run(inspectScript, ["--help"]), "inspect help");
+  expectSuccess(await run(replaceAsciiScript, ["--help"]), "replace ASCII bytes help");
   expectSuccess(await run(transcodeScript, ["--help"]), "transcode help");
 }
 
@@ -291,6 +352,7 @@ async function testMetadata() {
   assert.equal(packageJson.version, "0.1.1");
   assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
+  assert.equal(packageJson.bin["safe-text-replace-ascii-bytes"], "skills/safe-text-io/scripts/replace-ascii-bytes.mjs");
   assert.ok(packageJson.files.includes("schemas/"));
   assert.ok(packageJson.files.includes("examples/"));
   assert.ok(packageJson.files.includes("docs/"));

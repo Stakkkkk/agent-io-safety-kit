@@ -21,6 +21,7 @@ description: Inspect, read, create, edit, validate, and transcode text with expl
 - Для обычной правки использовать структурированный редактор или patch API.
 - Для диагностики запустить `scripts/inspect-text.mjs`.
 - Для явного преобразования использовать `scripts/transcode-text.mjs`.
+- Для ASCII-only правок в non-UTF-8 или unknown-encoding файлах использовать `scripts/replace-ascii-bytes.mjs`.
 - Для команды, которая генерирует текст, дополнительно применить `safe-shell-io` и указать кодировку stdout.
 
 Не использовать shell redirection, `Set-Content`, `Out-File`, `echo` или неявный `Get-Content`, если их точная байтовая семантика не проверена для текущей версии оболочки.
@@ -51,6 +52,16 @@ node <skill-dir>/scripts/transcode-text.mjs --input <source> --output <target> -
 Не перезаписывать существующий target без `--force`. Для изменения исходника на месте передать `--in-place` и не указывать `--output`. Для предварительного сравнения добавить `--check`.
 
 Подробную матрицу читать в `references/encoding-policy.md` при работе с PowerShell, UTF-16 или существующей политикой проекта.
+
+## Заменить ASCII-байты без декодирования
+
+Если файл не проходит строгую UTF-8 проверку, но нужная правка — только замена ASCII-последовательности байтов, не декодируйте весь файл. Используйте byte replacement tool:
+
+```text
+node <skill-dir>/scripts/replace-ascii-bytes.mjs --input <source> --output <target> --search old/ascii --replace new/ascii
+```
+
+`--in-place` используйте только когда действительно нужно изменить исходник. Для явных байтовых последовательностей есть `--search-hex` / `--replace-hex`. Для смысловых non-ASCII правок эта утилита не подходит.
 
 ## PowerShell 5.1
 

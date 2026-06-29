@@ -17,7 +17,7 @@ Use it when an agent frequently:
 
 - `RULE.md` — the central policy for safe shell and text I/O.
 - `skills/safe-shell-io` — instructions and a spec runner for exact `argv` execution.
-- `skills/safe-text-io` — instructions and utilities for text inspection and transcoding.
+- `skills/safe-text-io` — instructions and utilities for text inspection, transcoding, and ASCII-safe byte replacement.
 - `schemas/command-spec.schema.json` — JSON Schema for command specs.
 - `scripts/deploy.mjs` — an idempotent installer for target projects.
 - `scripts/doctor.mjs` — a diagnostic command for installed copies.
@@ -27,6 +27,8 @@ Use it when an agent frequently:
 - `docs/language-policy.md` — why the core stays dependency-free Node.js.
 - `docs/localization.md` — how English canonical files and Russian localization are maintained.
 - `docs/project-skills-layering.md` — how to use the kit next to existing project/domain skills.
+- `docs/field-notes.md` — real shell/text/remote I/O traps observed in agent work.
+- `docs/remote-io-recipes.md` — safer patterns for SSH, rsync, here-docs, SFTP, and long remote jobs.
 - `tests/run-tests.mjs` — a self-contained test suite with no npm dependencies.
 
 Design overview: [`00-MECHANISM.md`](00-MECHANISM.md). Deployment guide: [`01-DEPLOYMENT.md`](01-DEPLOYMENT.md).
@@ -183,6 +185,16 @@ node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.
 
 The inspector strictly checks UTF-8, BOM, line endings, suspicious UTF-16 without BOM, and PowerShell 5.1 safety for `.ps1/.psd1/.psm1`.
 
+## Example: ASCII-safe byte replacement
+
+When a file is not valid UTF-8 but the required edit is ASCII-only, avoid decoding it with replacement characters. Replace raw ASCII byte sequences instead:
+
+```sh
+node skills/safe-text-io/scripts/replace-ascii-bytes.mjs --input legacy.sh --in-place --search old/path --replace new/path
+```
+
+This preserves all non-target bytes and is intentionally limited to ASCII strings or explicit hex bytes.
+
 ## Guarantees and boundaries
 
 The kit makes fragile operations deterministic:
@@ -202,6 +214,10 @@ This kit is not trying to replace mature linters or scanners. It defines the saf
 ## Layering with project skills
 
 The kit does not replace project-specific or domain-specific instructions. It sits below them and handles shell/text I/O boundaries. See [`docs/project-skills-layering.md`](docs/project-skills-layering.md).
+
+## Field-tested recipes
+
+See [`docs/field-notes.md`](docs/field-notes.md), [`docs/remote-io-recipes.md`](docs/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), and [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md) for cases such as terminal mojibake with valid UTF-8 bytes, `ssh -n` vs `rsync -e`, remote here-doc escaping, Paramiko SFTP rename behavior, long SSH jobs, and floating Docker tags.
 
 ## npm status
 

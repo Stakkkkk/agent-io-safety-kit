@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-Nothing yet.
+- Added field notes for real shell/text/remote I/O traps.
+- Added remote I/O recipes for SSH, rsync, here-doc, SFTP rename, and long-running remote operations.
+- Added PowerShell `Select-Object -Index` and remote script boundary examples.
+- Added `safe-text-replace-ascii-bytes` for ASCII-safe byte replacement in non-UTF-8 or unknown-encoding files.
+- Documented floating Docker tag migration risk.
 
 ## 0.1.1 - 2026-06-29
 

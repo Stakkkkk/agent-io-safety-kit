@@ -21,6 +21,7 @@ Do not guess legacy encodings. Do not decode with replacement characters and sav
 - For normal edits, use a structured editor or patch API.
 - For diagnostics, run `scripts/inspect-text.mjs`.
 - For explicit transcoding, run `scripts/transcode-text.mjs`.
+- For ASCII-only edits in non-UTF-8 or unknown-encoding files, run `scripts/replace-ascii-bytes.mjs`.
 - For commands that generate text, also apply `safe-shell-io` and specify stdout encoding.
 
 Do not use shell redirection, `Set-Content`, `Out-File`, `echo`, or implicit `Get-Content` unless their exact byte semantics are verified for the current shell version.
@@ -51,6 +52,16 @@ node <skill-dir>/scripts/transcode-text.mjs --input <source> --output <target> -
 Do not overwrite an existing target without `--force`. To modify the source in place, pass `--in-place` and do not pass `--output`. For a comparison-only check, add `--check`.
 
 Read `references/encoding-policy.md` when working with PowerShell, UTF-16, or an existing project policy.
+
+## Replace ASCII bytes without decoding
+
+If a file fails strict UTF-8 inspection but the required edit is only an ASCII byte sequence, avoid whole-file decoding. Use the byte replacement tool:
+
+```text
+node <skill-dir>/scripts/replace-ascii-bytes.mjs --input <source> --output <target> --search old/ascii --replace new/ascii
+```
+
+Use `--in-place` only when you intentionally want to modify the source. Use `--search-hex` / `--replace-hex` for explicit byte sequences. Do not use this tool for non-ASCII semantic edits.
 
 ## PowerShell 5.1
 

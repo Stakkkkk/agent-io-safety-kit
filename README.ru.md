@@ -15,7 +15,7 @@
 
 - `RULE.md` — центральная политика безопасного shell и текстового I/O.
 - `skills/safe-shell-io` — инструкция и runner для запуска команд с точной передачей `argv`.
-- `skills/safe-text-io` — инструкция и утилиты для проверки/преобразования текстовых файлов.
+- `skills/safe-text-io` — инструкция и утилиты для проверки, преобразования и ASCII-safe byte replacement в текстовых/legacy-файлах.
 - `schemas/command-spec.schema.json` — JSON Schema для command spec.
 - `scripts/deploy.mjs` — идемпотентный установщик в целевой проект.
 - `scripts/doctor.mjs` — диагностика установленной копии.
@@ -25,6 +25,8 @@
 - `docs/ru/language-policy.md` — почему ядро остаётся dependency-free Node.js.
 - `docs/ru/localization.md` — как поддерживаются английские canonical-файлы и русская локализация.
 - `docs/ru/project-skills-layering.md` — как использовать kit рядом с существующими project/domain skills.
+- `docs/ru/field-notes.md` — реальные ловушки shell/text/remote I/O, замеченные в работе агентов.
+- `docs/ru/remote-io-recipes.md` — безопасные паттерны для SSH, rsync, here-doc, SFTP и долгих remote-задач.
 - `tests/run-tests.mjs` — самодостаточный тестовый набор без внешних зависимостей.
 
 Подробное описание механизма: [`00-MECHANISM.ru.md`](00-MECHANISM.ru.md). Инструкция по развёртыванию: [`01-DEPLOYMENT.ru.md`](01-DEPLOYMENT.ru.md).
@@ -181,6 +183,16 @@ node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.
 
 Утилита строго проверяет UTF-8, BOM, окончания строк, подозрительный UTF-16 без BOM и PowerShell 5.1-совместимость для `.ps1/.psd1/.psm1`.
 
+## Пример: ASCII-safe byte replacement
+
+Если файл не является валидным UTF-8, но нужная правка затрагивает только ASCII-байты, не декодируйте файл с replacement characters. Заменяйте сырые ASCII-последовательности:
+
+```sh
+node skills/safe-text-io/scripts/replace-ascii-bytes.mjs --input legacy.sh --in-place --search old/path --replace new/path
+```
+
+Так сохраняются все нецелевые байты. Для не-ASCII изменений нужен явный выбор кодировки, а не эта утилита.
+
 ## Гарантии и границы
 
 Комплект помогает сделать хрупкие операции детерминированными:
@@ -200,6 +212,10 @@ node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.
 ## Слои рядом с project skills
 
 Комплект не заменяет проектные или предметные инструкции. Он находится ниже уровнем и отвечает за shell/text I/O границы. См. [`docs/ru/project-skills-layering.md`](docs/ru/project-skills-layering.md).
+
+## Рецепты из практики
+
+См. [`docs/ru/field-notes.md`](docs/ru/field-notes.md), [`docs/ru/remote-io-recipes.md`](docs/ru/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md) и [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md): там разобраны mojibake при корректных UTF-8 байтах, `ssh -n` vs `rsync -e`, escape-слои remote here-doc, Paramiko SFTP rename, долгие SSH-задачи и риск плавающих Docker tags.
 
 ## Статус npm
 

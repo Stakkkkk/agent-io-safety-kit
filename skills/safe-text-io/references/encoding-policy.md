@@ -14,6 +14,8 @@
 3. Preserve confirmed encoding and line endings unless the task requires conversion.
 4. If a legacy encoding is unknown, do not modify the file until an explicit choice is made.
 
+Exception: if the file is non-UTF-8 or unknown-encoding and the required edit is an ASCII-only byte sequence replacement, use `scripts/replace-ascii-bytes.mjs` so the rest of the bytes are preserved. Do not use this exception for non-ASCII text edits.
+
 ## PowerShell
 
 | Environment | Safe `.ps1` source |
@@ -28,6 +30,7 @@ Native program output, `$OutputEncoding`, console code page, and file encoding a
 
 - Do not identify CP1251/CP866 only because the result “looks right”.
 - Do not save text after decoding with `�`.
+- Do not “repair” non-UTF-8 files by decoding with replacement characters; use byte replacement only for explicit ASCII-only edits.
 - Do not remove BOMs in bulk without checking the consumer.
 - Do not normalize all line endings without a project requirement.
 - Do not treat a binary file as text because of its extension.
