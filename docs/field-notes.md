@@ -37,6 +37,14 @@ Prefer:
 
 See `docs/remote-io-recipes.md`.
 
+## PowerShell + SSH can degrade `\n` into `n...n`
+
+If PowerShell builds an SSH command string that contains `\n`, that sequence may be interpreted by the wrong layer, remain literal, or degrade into output such as `n...n`.
+
+Do not depend on `\n` escaping across PowerShell → SSH → remote shell. For tiny fixed text, use repeated fixed `echo` commands. For real payloads, upload a file, stream stdin, or pass JSON/Base64 data.
+
+See `examples/powershell-ssh-newlines.md`.
+
 ## Paramiko SFTP rename may not overwrite
 
 `sftp.rename(tmp, target)` can fail when `target` already exists. Some servers return a generic `Failure`.

@@ -28,9 +28,11 @@ Before SSH, rsync, SFTP, remote shell, here-doc, or long-running remote operatio
 Apply these routing rules:
 
 - use `ssh -n` only when the SSH process must not consume parent stdin; do not put `ssh -n` inside `rsync -e`;
+- do not pass newlines as `\n` through PowerShell/SSH quoting; use repeated fixed `echo` only for tiny fixed text, otherwise upload/stream data or use JSON/Base64;
 - for complex remote scripts, upload a script file, stream bytes through stdin, or pass data as a file/Base64 payload instead of building multi-layer here-doc strings;
 - for long SSH/rsync work, prefer remote supervision plus a log and polling instead of keeping the job tied to the local client;
 - for PowerShell ranges, read `../../examples/powershell-select-object.md` and use `-Index (94..112)` or `-Skip/-First`;
+- for PowerShell/SSH newline escapes, read `../../examples/powershell-ssh-newlines.md`;
 - before embedding a script in a host-language string, read `../../examples/remote-script-boundaries.md`.
 
 ## Run through a spec

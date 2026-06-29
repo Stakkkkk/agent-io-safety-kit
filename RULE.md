@@ -51,11 +51,16 @@ Read `docs/field-notes.md` when an operation touches any of these known traps:
 
 - terminal or tool output shows mojibake but file bytes may still be valid;
 - SSH, rsync, SFTP, remote shell, here-doc, or long-running remote operations are involved;
+- PowerShell/SSH command strings contain `\n` newline escapes;
 - PowerShell ranges or line windows are involved;
 - a non-UTF-8 file needs an ASCII-only byte replacement;
 - floating Docker tags are being migrated or preserved.
 
-Read `docs/remote-io-recipes.md` before composing multi-layer remote commands. Use `examples/powershell-select-object.md` for PowerShell range syntax and `examples/remote-script-boundaries.md` before embedding scripts inside local-language strings.
+Read `docs/remote-io-recipes.md` before composing multi-layer remote commands. Use `examples/powershell-select-object.md` for PowerShell range syntax, `examples/powershell-ssh-newlines.md` for PowerShell/SSH newline escaping, and `examples/remote-script-boundaries.md` before embedding scripts inside local-language strings.
+
+## Optional hook enforcement
+
+If the host agent supports lifecycle hooks, use them as a mechanical enforcement layer around this rule. See `docs/cursor-hooks.md` and `docs/codex-hooks.md`. Hooks do not replace the skills; they block or route the most obvious unsafe tool-call shapes.
 
 ## PowerShell
 

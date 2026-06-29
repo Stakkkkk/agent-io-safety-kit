@@ -27,6 +27,8 @@
 - `docs/ru/project-skills-layering.md` — как использовать kit рядом с существующими project/domain skills.
 - `docs/ru/field-notes.md` — реальные ловушки shell/text/remote I/O, замеченные в работе агентов.
 - `docs/ru/remote-io-recipes.md` — безопасные паттерны для SSH, rsync, here-doc, SFTP и долгих remote-задач.
+- `docs/ru/cursor-hooks.md` — optional enforcement-слой через Cursor Hooks.
+- `docs/ru/codex-hooks.md` — optional enforcement-слой через Codex Hooks.
 - `tests/run-tests.mjs` — самодостаточный тестовый набор без внешних зависимостей.
 
 Подробное описание механизма: [`00-MECHANISM.ru.md`](00-MECHANISM.ru.md). Инструкция по развёртыванию: [`01-DEPLOYMENT.ru.md`](01-DEPLOYMENT.ru.md).
@@ -215,7 +217,11 @@ node skills/safe-text-io/scripts/replace-ascii-bytes.mjs --input legacy.sh --in-
 
 ## Рецепты из практики
 
-См. [`docs/ru/field-notes.md`](docs/ru/field-notes.md), [`docs/ru/remote-io-recipes.md`](docs/ru/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md) и [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md): там разобраны mojibake при корректных UTF-8 байтах, `ssh -n` vs `rsync -e`, escape-слои remote here-doc, Paramiko SFTP rename, долгие SSH-задачи и риск плавающих Docker tags.
+См. [`docs/ru/field-notes.md`](docs/ru/field-notes.md), [`docs/ru/remote-io-recipes.md`](docs/ru/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md) и [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md): там разобраны mojibake при корректных UTF-8 байтах, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, escape-слои remote here-doc, Paramiko SFTP rename, долгие SSH-задачи и риск плавающих Docker tags.
+
+## Optional hook enforcement
+
+Rules и skills учат агента правильному маршруту. Hooks могут принудительно закрывать самые механические риски вокруг tool calls. См. [`docs/ru/cursor-hooks.md`](docs/ru/cursor-hooks.md) и [`docs/ru/codex-hooks.md`](docs/ru/codex-hooks.md). Готовый пример для Cursor лежит в [`examples/cursor-hooks/`](examples/cursor-hooks/).
 
 ## Статус npm
 

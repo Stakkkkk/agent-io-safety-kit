@@ -26,6 +26,17 @@ Inspect a single generated file without assuming shell defaults:
 node skills/safe-text-io/scripts/inspect-text.mjs examples/safe-shell-command.json
 ```
 
+## Remote and PowerShell boundaries
+
+- `windows-powershell-ssh.md` shows a fixed remote command with script bytes sent through stdin.
+- `powershell-ssh-newlines.md` explains why `\n` should not be trusted across PowerShell → SSH → remote shell quoting.
+- `powershell-select-object.md` shows safe range syntax for `Select-Object -Index`.
+- `remote-script-boundaries.md` shows why multi-level here-doc strings are fragile.
+
+## Hook examples
+
+`cursor-hooks/` contains a dependency-free Cursor `beforeShellExecution` hook example. It blocks `rsync -e "ssh -n ..."`, blocks bare PowerShell ranges, and asks for review when SSH commands contain literal `\n` newline escapes.
+
 ## Agent instruction snippets
 
 Use the managed snippets in `snippets/` for root agent instruction files such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, or Cursor rule files.

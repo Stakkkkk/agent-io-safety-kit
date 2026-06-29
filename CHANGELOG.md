@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 
 Nothing yet.
 
+## 0.1.3 - 2026-06-29
+
+- Added a PowerShell + SSH newline escaping recipe for `\n` sequences that can degrade into `n...n` output.
+- Added optional Cursor Hooks documentation and a dependency-free `beforeShellExecution` example hook.
+- Added optional Codex Hooks documentation for using hooks as an enforcement layer around the kit.
+- Routed agents from the central rule and safe-shell skill to the new newline and hooks guidance.
+- Added tests for the Cursor hook example and deployed hook/newline docs.
+
 ## 0.1.2 - 2026-06-29
 
 - Added field notes for real shell/text/remote I/O traps.

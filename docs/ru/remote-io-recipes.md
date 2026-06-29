@@ -25,6 +25,20 @@ command = f"ssh host \"python3 - <<'PY'\nprint('{user_text}')\nPY\""
 - data payload через Base64 или JSON files;
 - через remote command line передавать только стабильные пути или фиксированные flags.
 
+## PowerShell/SSH newline escapes
+
+Не передавайте переводы строк как `\n` через PowerShell → SSH → remote shell quoting. В зависимости от слоёв remote side может увидеть literal backslash-n, реальный перевод строки не в том месте или output вида `n...n`.
+
+Для маленького фиксированного output повторяющиеся `echo` commands понятнее, чем cross-layer newline escaping:
+
+```powershell
+ssh host "echo 'line 1'; echo 'line 2'"
+```
+
+Для generated или user-controlled payloads не используйте `echo`. Загружайте файл, передавайте bytes через stdin или отправляйте JSON/Base64 data и декодируйте удалённо.
+
+См. `examples/powershell-ssh-newlines.md`.
+
 ## `ssh -n`
 
 Используйте `ssh -n`, когда вложенная SSH-команда не должна читать stdin родительского скрипта.

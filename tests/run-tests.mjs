@@ -16,23 +16,25 @@ const runnerScript = path.join(packageRoot, "skills", "safe-shell-io", "scripts"
 const inspectScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "inspect-text.mjs");
 const replaceAsciiScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "replace-ascii-bytes.mjs");
 const transcodeScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "transcode-text.mjs");
+const cursorHookScript = path.join(packageRoot, "examples", "cursor-hooks", "io-safety-hook.mjs");
 const schemaPath = path.join(packageRoot, "schemas", "command-spec.schema.json");
 
 function digest(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-async function run(script, args, { cwd = packageRoot } = {}) {
+async function run(script, args, { cwd = packageRoot, stdin } = {}) {
   const child = spawn(process.execPath, [script, ...args], {
     cwd,
     shell: false,
     windowsHide: true,
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
   });
   const stdout = [];
   const stderr = [];
   child.stdout.on("data", (chunk) => stdout.push(chunk));
   child.stderr.on("data", (chunk) => stderr.push(chunk));
+  if (stdin !== undefined) child.stdin.end(stdin);
   const result = await new Promise((resolve, reject) => {
     child.once("error", reject);
     child.once("close", (code, signal) => resolve({ code, signal }));
@@ -85,6 +87,21 @@ async function testDeployment(tempRoot) {
     await readFile(path.join(target, ".agent-io-safety", "examples", "powershell-select-object.md"), "utf8"),
     /Select-Object/,
     "PowerShell example was not deployed",
+  );
+  assert.match(
+    await readFile(path.join(target, ".agent-io-safety", "examples", "powershell-ssh-newlines.md"), "utf8"),
+    /PowerShell \+ SSH newline/,
+    "PowerShell SSH newline example was not deployed",
+  );
+  assert.match(
+    await readFile(path.join(target, ".agent-io-safety", "docs", "cursor-hooks.md"), "utf8"),
+    /Cursor hooks integration/,
+    "Cursor hooks docs were not deployed",
+  );
+  assert.match(
+    await readFile(path.join(target, ".agent-io-safety", "examples", "cursor-hooks", "hooks.json"), "utf8"),
+    /beforeShellExecution/,
+    "Cursor hook config was not deployed",
   );
 
   const beforeSecond = digest(await readFile(entryPath));
@@ -374,7 +391,7 @@ async function testMetadata() {
   assert.equal(schema.properties.command.type, "string");
 
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
-  assert.equal(packageJson.version, "0.1.2");
+  assert.equal(packageJson.version, "0.1.3");
   assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
   assert.equal(packageJson.bin["safe-text-replace-ascii-bytes"], "skills/safe-text-io/scripts/replace-ascii-bytes.mjs");
@@ -388,12 +405,38 @@ async function testMetadata() {
 }
 
 async function testReleaseNotes() {
-  const notes = await run(releaseNotesScript, ["v0.1.2"]);
+  const notes = await run(releaseNotesScript, ["v0.1.3"]);
   expectSuccess(notes, "release notes extraction");
-  assert.match(notes.stdout, /field notes/);
-  assert.match(notes.stdout, /safe-text-replace-ascii-bytes/);
-  assert.match(notes.stdout, /deployed `.agent-io-safety\/` copies/);
-  assert.doesNotMatch(notes.stdout, /0\.1\.1/);
+  assert.match(notes.stdout, /PowerShell \+ SSH newline/);
+  assert.match(notes.stdout, /Cursor Hooks/);
+  assert.match(notes.stdout, /Codex Hooks/);
+  assert.doesNotMatch(notes.stdout, /0\.1\.2/);
+}
+
+async function testCursorHookExample() {
+  const rsync = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: 'rsync -e "ssh -n" src/ host:/tmp/src/', cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(rsync, "Cursor hook rsync ssh -n");
+  assert.equal(JSON.parse(rsync.stdout).permission, "deny");
+
+  const newline = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: 'ssh host "printf line1\\nline2"', cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(newline, "Cursor hook PowerShell SSH newline");
+  assert.equal(JSON.parse(newline.stdout).permission, "ask");
+
+  const range = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: "Get-Content file.txt | Select-Object -Index 94..112", cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(range, "Cursor hook PowerShell range");
+  assert.equal(JSON.parse(range.stdout).permission, "deny");
+
+  const safe = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: "node --version", cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(safe, "Cursor hook safe command");
+  assert.equal(JSON.parse(safe.stdout).permission, "allow");
 }
 
 async function safeCleanup(tempRoot) {
@@ -412,6 +455,7 @@ try {
   await testCliHelp();
   await testMetadata();
   await testReleaseNotes();
+  await testCursorHookExample();
   await testDeployment(tempRoot);
   await testRunner(tempRoot);
   await testTextTools(tempRoot);

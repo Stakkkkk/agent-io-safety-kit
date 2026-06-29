@@ -25,6 +25,20 @@ Safer patterns:
 - encode data payloads as Base64 or JSON files;
 - pass only stable paths or fixed flags through the remote command line.
 
+## PowerShell/SSH newline escapes
+
+Do not pass newlines as `\n` through PowerShell → SSH → remote shell quoting. Depending on the layers, the remote side may see a literal backslash-n, a real newline in the wrong place, or output such as `n...n`.
+
+For tiny fixed output, repeated `echo` commands are clearer than cross-layer newline escaping:
+
+```powershell
+ssh host "echo 'line 1'; echo 'line 2'"
+```
+
+For generated or user-controlled payloads, do not use `echo`. Upload a file, stream bytes through stdin, or send JSON/Base64 data and decode it remotely.
+
+See `examples/powershell-ssh-newlines.md`.
+
 ## `ssh -n`
 
 Use `ssh -n` when a nested SSH command must not read the parent script’s stdin.

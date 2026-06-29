@@ -51,11 +51,16 @@
 
 - terminal/tool output показывает mojibake, но байты файла могут быть корректными;
 - используются SSH, rsync, SFTP, remote shell, here-doc или долгие remote-операции;
+- PowerShell/SSH command strings содержат `\n` newline escapes;
 - используются PowerShell ranges или выборка окон строк;
 - в non-UTF-8 файле нужна ASCII-only замена байтов;
 - мигрируются или сохраняются плавающие Docker tags.
 
-Читайте `docs/ru/remote-io-recipes.md` перед составлением многоуровневых remote-команд. Используйте `examples/powershell-select-object.md` для PowerShell range syntax и `examples/remote-script-boundaries.md` перед встраиванием скриптов в строки host-языка.
+Читайте `docs/ru/remote-io-recipes.md` перед составлением многоуровневых remote-команд. Используйте `examples/powershell-select-object.md` для PowerShell range syntax, `examples/powershell-ssh-newlines.md` для PowerShell/SSH newline escaping и `examples/remote-script-boundaries.md` перед встраиванием скриптов в строки host-языка.
+
+## Optional hook enforcement
+
+Если host agent поддерживает lifecycle hooks, используйте их как механический enforcement-слой вокруг этого правила. См. `docs/ru/cursor-hooks.md` и `docs/ru/codex-hooks.md`. Hooks не заменяют skills; они блокируют или маршрутизируют самые очевидные unsafe tool-call shapes.
 
 ## PowerShell
 

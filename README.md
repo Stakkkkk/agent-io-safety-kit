@@ -29,6 +29,8 @@ Use it when an agent frequently:
 - `docs/project-skills-layering.md` — how to use the kit next to existing project/domain skills.
 - `docs/field-notes.md` — real shell/text/remote I/O traps observed in agent work.
 - `docs/remote-io-recipes.md` — safer patterns for SSH, rsync, here-docs, SFTP, and long remote jobs.
+- `docs/cursor-hooks.md` — optional Cursor Hooks enforcement layer.
+- `docs/codex-hooks.md` — optional Codex Hooks enforcement layer.
 - `tests/run-tests.mjs` — a self-contained test suite with no npm dependencies.
 
 Design overview: [`00-MECHANISM.md`](00-MECHANISM.md). Deployment guide: [`01-DEPLOYMENT.md`](01-DEPLOYMENT.md).
@@ -217,7 +219,11 @@ The kit does not replace project-specific or domain-specific instructions. It si
 
 ## Field-tested recipes
 
-See [`docs/field-notes.md`](docs/field-notes.md), [`docs/remote-io-recipes.md`](docs/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), and [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md) for cases such as terminal mojibake with valid UTF-8 bytes, `ssh -n` vs `rsync -e`, remote here-doc escaping, Paramiko SFTP rename behavior, long SSH jobs, and floating Docker tags.
+See [`docs/field-notes.md`](docs/field-notes.md), [`docs/remote-io-recipes.md`](docs/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), and [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md) for cases such as terminal mojibake with valid UTF-8 bytes, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, remote here-doc escaping, Paramiko SFTP rename behavior, long SSH jobs, and floating Docker tags.
+
+## Optional hook enforcement
+
+Rules and skills teach the agent what to do. Hooks can enforce the most mechanical parts around tool calls. See [`docs/cursor-hooks.md`](docs/cursor-hooks.md) and [`docs/codex-hooks.md`](docs/codex-hooks.md). A ready-to-copy Cursor example is in [`examples/cursor-hooks/`](examples/cursor-hooks/).
 
 ## npm status
 

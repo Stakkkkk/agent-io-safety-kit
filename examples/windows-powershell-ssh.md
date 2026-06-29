@@ -48,6 +48,18 @@ If you need to pass changing user data, prefer one of these:
 3. use a project-specific remote script with well-defined parameters;
 4. avoid remote shell execution entirely and use a dedicated API if available.
 
+## Newlines
+
+Do not rely on `\n` inside a PowerShell-built SSH command string. It can be interpreted by the wrong layer or arrive remotely as plain `n...n`.
+
+For tiny fixed text, prefer:
+
+```powershell
+ssh host "echo 'line 1'; echo 'line 2'"
+```
+
+For real payloads, upload or stream data instead of embedding newline escapes. See `examples/powershell-ssh-newlines.md`.
+
 After generating or modifying `.ps1` files, run:
 
 ```sh

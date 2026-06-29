@@ -37,6 +37,14 @@ node skills/safe-text-io/scripts/inspect-text.mjs path/to/file.md
 
 См. `docs/ru/remote-io-recipes.md`.
 
+## PowerShell + SSH может превратить `\n` в `n...n`
+
+Если PowerShell собирает SSH command string с `\n`, эта последовательность может быть обработана не тем слоем, остаться literal или превратиться в output вида `n...n`.
+
+Не полагайтесь на `\n` escaping через цепочку PowerShell → SSH → remote shell. Для маленького фиксированного текста используйте повторяющиеся fixed `echo` commands. Для настоящих payload загружайте файл, передавайте stdin или используйте JSON/Base64.
+
+См. `examples/powershell-ssh-newlines.md`.
+
 ## Paramiko SFTP rename может не перезаписать файл
 
 `sftp.rename(tmp, target)` может упасть, если `target` уже существует. Некоторые серверы возвращают общий `Failure`.
