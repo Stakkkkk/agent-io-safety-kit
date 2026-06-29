@@ -37,11 +37,12 @@ cp .agent-io-safety/examples/cursor-hooks/hooks.json .cursor/hooks.json
 node .agent-io-safety/examples/cursor-hooks/io-safety-hook.mjs --event beforeShellExecution
 ```
 
-Сейчас он ловит три практические ловушки:
+Сейчас он ловит четыре практические ловушки:
 
 - `rsync -e "ssh -n ..."` — deny, потому что rsync использует SSH stdin/stdout как protocol channel;
 - `Select-Object -Index 94..112` — deny; используйте `-Index (94..112)` или `-Skip/-First`;
-- SSH-команды с literal `\n` escapes — ask for review, потому что PowerShell/SSH quoting может дать remote output вида `n...n`.
+- SSH-команды с literal `\n` escapes — ask for review, потому что PowerShell/SSH quoting может дать remote output вида `n...n`;
+- `rg "-pattern"` до `--` — ask for review, потому что ripgrep воспринимает значения с начальным `-` как options, пока option parsing не остановлен.
 
 ## Cloud agents
 
@@ -55,6 +56,7 @@ Hooks должны быть маленькими и детерминирован
 - `docs/ru/remote-io-recipes.md`;
 - `examples/powershell-ssh-newlines.md`;
 - `examples/powershell-select-object.md`;
+- `examples/ripgrep-leading-dash.md`;
 - `skills/safe-shell-io/SKILL.md`.
 
 Hooks не заменяют комплект. Они принудительно закрывают механические риски и возвращают агента к безопасному deterministic path.

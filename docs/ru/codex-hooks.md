@@ -24,6 +24,7 @@ Hooks подходят для механических границ:
 - deny для `rsync -e "ssh -n ..."`, потому что rsync нужен SSH stdin/stdout channel;
 - ask или deny для SSH-команд с literal `\n` escapes, особенно из PowerShell;
 - deny для PowerShell `Select-Object -Index 94..112`; требовать `-Index (94..112)` или `-Skip/-First`;
+- ask для `rg "-pattern"` до `--`; требовать `rg -- "-pattern"` или `rg --fixed-strings -- "-literal"` для literal user text;
 - после правок text files запускать `skills/safe-text-io/scripts/inspect-text.mjs`, если hook payload даёт достаточно file context.
 
 ## Шаблон конфигурации

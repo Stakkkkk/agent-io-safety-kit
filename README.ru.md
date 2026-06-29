@@ -217,7 +217,7 @@ node skills/safe-text-io/scripts/replace-ascii-bytes.mjs --input legacy.sh --in-
 
 ## Рецепты из практики
 
-См. [`docs/ru/field-notes.md`](docs/ru/field-notes.md), [`docs/ru/remote-io-recipes.md`](docs/ru/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md) и [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md): там разобраны mojibake при корректных UTF-8 байтах, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, escape-слои remote here-doc, Paramiko SFTP rename, долгие SSH-задачи и риск плавающих Docker tags.
+См. [`docs/ru/field-notes.md`](docs/ru/field-notes.md), [`docs/ru/remote-io-recipes.md`](docs/ru/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md) и [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md): там разобраны mojibake при корректных UTF-8 байтах, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, escape-слои remote here-doc, Paramiko SFTP rename, долгие SSH-задачи и риск плавающих Docker tags.
 
 ## Optional hook enforcement
 

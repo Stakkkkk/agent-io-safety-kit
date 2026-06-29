@@ -18,6 +18,7 @@ description: Execute external commands with exact argv semantics and without acc
 - Не собирать строку команды из пользовательских данных.
 - Не вкладывать `powershell -Command`, `cmd /c`, `sh -c` или `bash -c` без необходимости.
 - Не передавать JSON, SQL, regex или многострочный текст как фрагмент shell-синтаксиса.
+- Для CLI tools с option parsing ставить `--` перед user-controlled positional values, которые могут начинаться с `-`; для `rg` используйте `rg -- "-pattern"` или `rg --fixed-strings -- "-literal"`.
 - Не использовать `eval`, `Invoke-Expression` и `shell: true`.
 - Не помещать секреты в диагностический вывод или spec, который будет сохранён в репозитории.
 

@@ -64,6 +64,82 @@ function hasPowerShellBareRange(command) {
   return /Select-Object\s+-Index\s+\d+\.\.\d+/i.test(command);
 }
 
+function isRipgrepExecutable(value) {
+  const baseName = value.replaceAll("\\", "/").split("/").pop().toLowerCase();
+  return baseName === "rg" || baseName === "rg.exe";
+}
+
+function tokenizeShellLike(command) {
+  const tokens = [];
+  let current = "";
+  let quoted = false;
+  let quote = "";
+  let escaped = false;
+
+  function pushToken() {
+    if (current || quoted) tokens.push({ value: current, quoted, separator: false });
+    current = "";
+    quoted = false;
+  }
+
+  for (const char of command) {
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+
+    if (quote) {
+      if (char === quote) {
+        quote = "";
+        quoted = true;
+      } else if (quote === '"' && char === "\\") {
+        escaped = true;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === "'" || char === '"') {
+      quote = char;
+      quoted = true;
+    } else if (/\s/u.test(char)) {
+      pushToken();
+    } else if ("|;&".includes(char)) {
+      pushToken();
+      tokens.push({ value: char, quoted: false, separator: true });
+    } else {
+      current += char;
+    }
+  }
+
+  pushToken();
+  return tokens;
+}
+
+function hasRipgrepLeadingDashPatternWithoutTerminator(command) {
+  const tokens = tokenizeShellLike(command);
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token.separator || !isRipgrepExecutable(token.value)) continue;
+
+    let afterTerminator = false;
+    for (let argIndex = index + 1; argIndex < tokens.length; argIndex += 1) {
+      const arg = tokens[argIndex];
+      if (arg.separator) break;
+      if (arg.value === "--") {
+        afterTerminator = true;
+        continue;
+      }
+      if (!afterTerminator && arg.quoted && arg.value.startsWith("-")) return true;
+    }
+  }
+
+  return false;
+}
+
 function checkBeforeShellExecution(payload) {
   const command = String(payload.command ?? "");
   if (!command) return allow();
@@ -86,6 +162,13 @@ function checkBeforeShellExecution(payload) {
     return ask(
       "This SSH command contains a literal \\n escape. It may arrive remotely as n...n or be interpreted by the wrong layer.",
       "Avoid passing newlines as \\n through PowerShell/SSH quoting. Use repeated fixed echo commands for tiny fixed text, or upload/stream a file, stdin, JSON, or Base64 payload for real data.",
+    );
+  }
+
+  if (hasRipgrepLeadingDashPatternWithoutTerminator(command)) {
+    return ask(
+      "This rg command contains a quoted value that starts with - before an option terminator.",
+      "If this is the search pattern, use rg -- \"-pattern\". For literal user text, use rg --fixed-strings -- \"-literal\".",
     );
   }
 

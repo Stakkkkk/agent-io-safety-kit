@@ -37,11 +37,12 @@ The example config runs:
 node .agent-io-safety/examples/cursor-hooks/io-safety-hook.mjs --event beforeShellExecution
 ```
 
-It currently catches three field-tested traps:
+It currently catches four field-tested traps:
 
 - `rsync -e "ssh -n ..."` — denied because rsync uses SSH stdin/stdout as its protocol;
 - `Select-Object -Index 94..112` — denied; use `-Index (94..112)` or `-Skip/-First`;
-- SSH commands containing literal `\n` escapes — ask for review because PowerShell/SSH quoting can produce remote `n...n` output.
+- SSH commands containing literal `\n` escapes — ask for review because PowerShell/SSH quoting can produce remote `n...n` output;
+- `rg "-pattern"` before `--` — ask for review because ripgrep treats leading-dash values as options unless option parsing is terminated.
 
 ## Cloud agents
 
@@ -55,6 +56,7 @@ Keep hooks small and deterministic. The hook should decide whether the operation
 - `docs/remote-io-recipes.md`;
 - `examples/powershell-ssh-newlines.md`;
 - `examples/powershell-select-object.md`;
+- `examples/ripgrep-leading-dash.md`;
 - `skills/safe-shell-io/SKILL.md`.
 
 Hooks do not replace the kit. They enforce the most mechanical parts and route the agent back to the safer deterministic path.

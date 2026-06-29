@@ -219,7 +219,7 @@ The kit does not replace project-specific or domain-specific instructions. It si
 
 ## Field-tested recipes
 
-See [`docs/field-notes.md`](docs/field-notes.md), [`docs/remote-io-recipes.md`](docs/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), and [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md) for cases such as terminal mojibake with valid UTF-8 bytes, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, remote here-doc escaping, Paramiko SFTP rename behavior, long SSH jobs, and floating Docker tags.
+See [`docs/field-notes.md`](docs/field-notes.md), [`docs/remote-io-recipes.md`](docs/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md), and [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md) for cases such as terminal mojibake with valid UTF-8 bytes, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, remote here-doc escaping, Paramiko SFTP rename behavior, long SSH jobs, and floating Docker tags.
 
 ## Optional hook enforcement
 

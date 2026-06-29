@@ -18,6 +18,7 @@ After the first escaping or parsing failure, switch immediately to option 3. Do 
 - Do not build a command string from user data.
 - Do not nest `powershell -Command`, `cmd /c`, `sh -c`, or `bash -c` unless unavoidable.
 - Do not pass JSON, SQL, regex, or multiline text as shell syntax fragments.
+- For CLI tools with option parsing, put `--` before user-controlled positional values that can start with `-`; for `rg`, use `rg -- "-pattern"` or `rg --fixed-strings -- "-literal"`.
 - Do not use `eval`, `Invoke-Expression`, or `shell: true`.
 - Do not put secrets in diagnostic output or specs that will be committed.
 

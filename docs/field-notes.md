@@ -78,6 +78,17 @@ Select-Object -Skip 94 -First 19
 
 See `examples/powershell-select-object.md`.
 
+## `rg` patterns starting with `-` need `--`
+
+`rg` treats an argument that starts with `-` as an option. If the search pattern itself can start with `-`, stop option parsing first:
+
+```sh
+rg -- "-TODO"
+rg --fixed-strings -- "-literal-user-text"
+```
+
+See `examples/ripgrep-leading-dash.md`.
+
 ## Long SSH/rsync operations should survive client disconnects
 
 Long remote operations should not depend on a local terminal or SSH session staying alive.

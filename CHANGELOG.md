@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 Nothing yet.
 
+## 0.1.4 - 2026-06-29
+
+- Added a ripgrep recipe for patterns that start with `-`, requiring `rg -- "-pattern"`.
+- Added Cursor hook review for obvious `rg "-pattern"` commands without `--`.
+
 ## 0.1.3 - 2026-06-29
 
 - Added a PowerShell + SSH newline escaping recipe for `\n` sequences that can degrade into `n...n` output.

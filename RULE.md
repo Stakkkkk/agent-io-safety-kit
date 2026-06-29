@@ -53,10 +53,11 @@ Read `docs/field-notes.md` when an operation touches any of these known traps:
 - SSH, rsync, SFTP, remote shell, here-doc, or long-running remote operations are involved;
 - PowerShell/SSH command strings contain `\n` newline escapes;
 - PowerShell ranges or line windows are involved;
+- CLI search patterns or user-controlled positional values may start with `-`, especially `rg` patterns;
 - a non-UTF-8 file needs an ASCII-only byte replacement;
 - floating Docker tags are being migrated or preserved.
 
-Read `docs/remote-io-recipes.md` before composing multi-layer remote commands. Use `examples/powershell-select-object.md` for PowerShell range syntax, `examples/powershell-ssh-newlines.md` for PowerShell/SSH newline escaping, and `examples/remote-script-boundaries.md` before embedding scripts inside local-language strings.
+Read `docs/remote-io-recipes.md` before composing multi-layer remote commands. Use `examples/powershell-select-object.md` for PowerShell range syntax, `examples/powershell-ssh-newlines.md` for PowerShell/SSH newline escaping, `examples/ripgrep-leading-dash.md` for `rg -- "-pattern"`, and `examples/remote-script-boundaries.md` before embedding scripts inside local-language strings.
 
 ## Optional hook enforcement
 

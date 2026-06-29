@@ -53,10 +53,11 @@
 - используются SSH, rsync, SFTP, remote shell, here-doc или долгие remote-операции;
 - PowerShell/SSH command strings содержат `\n` newline escapes;
 - используются PowerShell ranges или выборка окон строк;
+- CLI search patterns или user-controlled positional values могут начинаться с `-`, особенно `rg` patterns;
 - в non-UTF-8 файле нужна ASCII-only замена байтов;
 - мигрируются или сохраняются плавающие Docker tags.
 
-Читайте `docs/ru/remote-io-recipes.md` перед составлением многоуровневых remote-команд. Используйте `examples/powershell-select-object.md` для PowerShell range syntax, `examples/powershell-ssh-newlines.md` для PowerShell/SSH newline escaping и `examples/remote-script-boundaries.md` перед встраиванием скриптов в строки host-языка.
+Читайте `docs/ru/remote-io-recipes.md` перед составлением многоуровневых remote-команд. Используйте `examples/powershell-select-object.md` для PowerShell range syntax, `examples/powershell-ssh-newlines.md` для PowerShell/SSH newline escaping, `examples/ripgrep-leading-dash.md` для `rg -- "-pattern"` и `examples/remote-script-boundaries.md` перед встраиванием скриптов в строки host-языка.
 
 ## Optional hook enforcement
 

@@ -94,6 +94,11 @@ async function testDeployment(tempRoot) {
     "PowerShell SSH newline example was not deployed",
   );
   assert.match(
+    await readFile(path.join(target, ".agent-io-safety", "examples", "ripgrep-leading-dash.md"), "utf8"),
+    /rg --/,
+    "ripgrep leading dash example was not deployed",
+  );
+  assert.match(
     await readFile(path.join(target, ".agent-io-safety", "docs", "cursor-hooks.md"), "utf8"),
     /Cursor hooks integration/,
     "Cursor hooks docs were not deployed",
@@ -391,7 +396,7 @@ async function testMetadata() {
   assert.equal(schema.properties.command.type, "string");
 
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
-  assert.equal(packageJson.version, "0.1.3");
+  assert.equal(packageJson.version, "0.1.4");
   assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
   assert.equal(packageJson.bin["safe-text-replace-ascii-bytes"], "skills/safe-text-io/scripts/replace-ascii-bytes.mjs");
@@ -405,12 +410,11 @@ async function testMetadata() {
 }
 
 async function testReleaseNotes() {
-  const notes = await run(releaseNotesScript, ["v0.1.3"]);
+  const notes = await run(releaseNotesScript, ["v0.1.4"]);
   expectSuccess(notes, "release notes extraction");
-  assert.match(notes.stdout, /PowerShell \+ SSH newline/);
-  assert.match(notes.stdout, /Cursor Hooks/);
-  assert.match(notes.stdout, /Codex Hooks/);
-  assert.doesNotMatch(notes.stdout, /0\.1\.2/);
+  assert.match(notes.stdout, /ripgrep recipe/);
+  assert.match(notes.stdout, /Cursor hook review/);
+  assert.doesNotMatch(notes.stdout, /0\.1\.3/);
 }
 
 async function testCursorHookExample() {
@@ -431,6 +435,24 @@ async function testCursorHookExample() {
   });
   expectSuccess(range, "Cursor hook PowerShell range");
   assert.equal(JSON.parse(range.stdout).permission, "deny");
+
+  const rgDash = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: 'rg "-TODO"', cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(rgDash, "Cursor hook ripgrep leading dash");
+  assert.equal(JSON.parse(rgDash.stdout).permission, "ask");
+
+  const rgExeDash = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: 'rg.exe -n "-TODO"', cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(rgExeDash, "Cursor hook rg.exe leading dash");
+  assert.equal(JSON.parse(rgExeDash.stdout).permission, "ask");
+
+  const rgSafe = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: 'rg -n -- "-TODO"', cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(rgSafe, "Cursor hook ripgrep leading dash with --");
+  assert.equal(JSON.parse(rgSafe.stdout).permission, "allow");
 
   const safe = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
     stdin: `${JSON.stringify({ command: "node --version", cwd: packageRoot, sandbox: false })}\n`,
