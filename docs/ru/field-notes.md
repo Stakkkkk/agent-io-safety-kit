@@ -15,8 +15,15 @@ PowerShell, terminal code page, кодировка stdout инструмента
 node skills/safe-text-io/scripts/inspect-text.mjs path/to/file.md
 ```
 
-3. при необходимости посмотрите hex bytes или прочитайте файл известным decoder;
-4. считайте terminal/tool output подозрительным, пока byte-level проверки не подтвердят повреждение.
+3. если нужен stdout через terminal/tool для Markdown, JSON, rules или skills, читайте строгим UTF-8 reader:
+
+```sh
+node skills/safe-text-io/scripts/read-text.mjs path/to/file.md
+```
+
+4. не чините PowerShell output inline snippets через `[Console]::OutputEncoding` или `[System.Text.UTF8Encoding]::new($false)`;
+5. при необходимости посмотрите hex bytes или прочитайте файл другим известным decoder;
+6. считайте terminal/tool output подозрительным, пока byte-level проверки не подтвердят повреждение.
 
 ## `ssh -n` полезен, но не внутри `rsync -e`
 

@@ -15,8 +15,15 @@ PowerShell, terminal code pages, tool stdout encoding, and file bytes are separa
 node skills/safe-text-io/scripts/inspect-text.mjs path/to/file.md
 ```
 
-3. if needed, inspect hex bytes or read the file with a known decoder;
-4. treat the terminal/tool output as suspect until byte-level checks confirm damage.
+3. if you need terminal/tool stdout for Markdown, JSON, rules, or skills, read with the strict UTF-8 reader:
+
+```sh
+node skills/safe-text-io/scripts/read-text.mjs path/to/file.md
+```
+
+4. do not try to fix PowerShell output with inline `[Console]::OutputEncoding` or `[System.Text.UTF8Encoding]::new($false)` snippets;
+5. if needed, inspect hex bytes or read the file with another known decoder;
+6. treat the terminal/tool output as suspect until byte-level checks confirm damage.
 
 ## `ssh -n` is useful, but not inside `rsync -e`
 

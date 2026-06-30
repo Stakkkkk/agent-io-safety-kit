@@ -19,12 +19,25 @@ Do not guess legacy encodings. Do not decode with replacement characters and sav
 ## Choose the operation
 
 - For normal edits, use a structured editor or patch API.
+- For reading Markdown, JSON, rules, skills, or other UTF-8 text through a terminal/tool boundary, run `scripts/read-text.mjs`.
 - For diagnostics, run `scripts/inspect-text.mjs`.
 - For explicit transcoding, run `scripts/transcode-text.mjs`.
 - For ASCII-only edits in non-UTF-8 or unknown-encoding files, run `scripts/replace-ascii-bytes.mjs`.
 - For commands that generate text, also apply `safe-shell-io` and specify stdout encoding.
 
 Do not use shell redirection, `Set-Content`, `Out-File`, `echo`, or implicit `Get-Content` unless their exact byte semantics are verified for the current shell version.
+
+## Read text safely
+
+When an agent needs to read text through stdout, especially on Windows or PowerShell, use the strict reader:
+
+```text
+node <skill-dir>/scripts/read-text.mjs <path> [<path> ...]
+```
+
+It reads bytes directly, accepts UTF-8 with or without BOM, rejects UTF-16 BOM and invalid UTF-8, strips a UTF-8 BOM only for output, and writes UTF-8 bytes to stdout.
+
+Use it for `RULE.md`, `SKILL.md`, Markdown, JSON, and other instruction files when terminal output is the boundary. Do not try to repair mojibake with `Get-Content`, `[Console]::OutputEncoding`, or inline `powershell -Command` encoding snippets such as `[System.Text.UTF8Encoding]::new($false)`.
 
 ## Inspect files
 

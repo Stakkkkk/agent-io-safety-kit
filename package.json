@@ -1,6 +1,6 @@
 {
   "name": "agent-io-safety-kit",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Portable rules, skills, and scripts for safer agent shell and text I/O.",
   "license": "MIT",
   "type": "module",
@@ -35,6 +35,7 @@
     "agent-io-safety-deploy": "scripts/deploy.mjs",
     "agent-io-safety-doctor": "scripts/doctor.mjs",
     "safe-shell-run": "skills/safe-shell-io/scripts/run-from-spec.mjs",
+    "safe-text-read": "skills/safe-text-io/scripts/read-text.mjs",
     "safe-text-inspect": "skills/safe-text-io/scripts/inspect-text.mjs",
     "safe-text-replace-ascii-bytes": "skills/safe-text-io/scripts/replace-ascii-bytes.mjs",
     "safe-text-transcode": "skills/safe-text-io/scripts/transcode-text.mjs"

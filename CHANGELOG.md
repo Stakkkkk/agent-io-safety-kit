@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 Nothing yet.
 
+## 0.1.5 - 2026-07-01
+
+- Added `safe-text-io/scripts/read-text.mjs` for strict UTF-8 reads through terminal/tool boundaries.
+- Documented that Windows agents must not fix terminal mojibake with inline PowerShell encoding commands; use `read-text.mjs`.
+
 ## 0.1.4 - 2026-06-29
 
 - Added a ripgrep recipe for patterns that start with `-`, requiring `rg -- "-pattern"`.

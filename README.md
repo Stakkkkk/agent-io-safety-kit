@@ -17,7 +17,7 @@ Use it when an agent frequently:
 
 - `RULE.md` — the central policy for safe shell and text I/O.
 - `skills/safe-shell-io` — instructions and a spec runner for exact `argv` execution.
-- `skills/safe-text-io` — instructions and utilities for text inspection, transcoding, and ASCII-safe byte replacement.
+- `skills/safe-text-io` — instructions and utilities for safe text reads, inspection, transcoding, and ASCII-safe byte replacement.
 - `schemas/command-spec.schema.json` — JSON Schema for command specs.
 - `scripts/deploy.mjs` — an idempotent installer for target projects.
 - `scripts/doctor.mjs` — a diagnostic command for installed copies.
@@ -110,6 +110,8 @@ Minimal instruction for a root-level agent entry file:
 
 Before the first operation that uses shell, reads or writes text, passes user-controlled values, paths, JSON/YAML/SQL/regex, non-ASCII characters, encodings, BOM, or line endings, read and follow `.agent-io-safety/RULE.md`.
 
+If you must read the rule or skills through terminal output on Windows/PowerShell, use `node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs .agent-io-safety/RULE.md` instead of `Get-Content` or inline `[Console]::OutputEncoding` fixes.
+
 Read the referenced skill file before the matching operation:
 
 - `.agent-io-safety/skills/safe-shell-io/SKILL.md` for complex commands, user values, quoting, shell metacharacters, structured payloads, stdin/stdout, or command-encoding failures.
@@ -181,6 +183,14 @@ The runner uses `spawn` with `shell: false` and passes every argument as a separ
 
 ## Example: text inspection
 
+Safely read Markdown, JSON, rules, or skills through a terminal/tool boundary:
+
+```sh
+node skills/safe-text-io/scripts/read-text.mjs RULE.md skills/safe-text-io/SKILL.md
+```
+
+The reader accepts UTF-8 with or without BOM, rejects invalid UTF-8 and UTF-16 BOM, and writes UTF-8 bytes to stdout. Windows agents must not fix terminal mojibake with inline PowerShell encoding commands such as `[Console]::OutputEncoding` or `[System.Text.UTF8Encoding]::new($false)`; use `read-text.mjs`.
+
 ```sh
 node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.md
 ```
@@ -237,6 +247,7 @@ Useful local commands:
 
 ```sh
 npx agent-io-safety-kit --target /path/to/project --entry AGENTS.md --dry-run
+npx safe-text-read README.md
 npx safe-text-inspect --fail-on-bom --eol lf README.md
 ```
 

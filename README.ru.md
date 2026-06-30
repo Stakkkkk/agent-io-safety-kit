@@ -15,7 +15,7 @@
 
 - `RULE.md` — центральная политика безопасного shell и текстового I/O.
 - `skills/safe-shell-io` — инструкция и runner для запуска команд с точной передачей `argv`.
-- `skills/safe-text-io` — инструкция и утилиты для проверки, преобразования и ASCII-safe byte replacement в текстовых/legacy-файлах.
+- `skills/safe-text-io` — инструкция и утилиты для безопасного чтения, проверки, преобразования и ASCII-safe byte replacement в текстовых/legacy-файлах.
 - `schemas/command-spec.schema.json` — JSON Schema для command spec.
 - `scripts/deploy.mjs` — идемпотентный установщик в целевой проект.
 - `scripts/doctor.mjs` — диагностика установленной копии.
@@ -108,6 +108,8 @@ node scripts/doctor.mjs --target /path/to/project --entry AGENTS.md --external
 
 Перед первой операцией, которая использует shell, читает или записывает текст, передаёт пользовательские значения, пути, JSON/YAML/SQL/regex, не-ASCII символы, кодировки, BOM или окончания строк, прочитай и соблюдай `.agent-io-safety/RULE.md`.
 
+Если нужно читать rule или skills через terminal output на Windows/PowerShell, используй `node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs .agent-io-safety/RULE.md` вместо `Get-Content` или inline fixes через `[Console]::OutputEncoding`.
+
 Прочитай указанный skill-файл перед соответствующей операцией:
 
 - `.agent-io-safety/skills/safe-shell-io/SKILL.md` — для сложных команд, пользовательских значений, кавычек, shell-метасимволов, структурированных payload, stdin/stdout или ошибок command-encoding.
@@ -179,6 +181,14 @@ Runner использует `spawn` с `shell: false` и передаёт каж
 
 ## Пример: проверка текста
 
+Безопасно прочитать Markdown, JSON, rules или skills через terminal/tool boundary:
+
+```sh
+node skills/safe-text-io/scripts/read-text.mjs RULE.md skills/safe-text-io/SKILL.md
+```
+
+Reader принимает UTF-8 с BOM и без BOM, отклоняет невалидный UTF-8 и UTF-16 BOM, пишет UTF-8 bytes в stdout. Windows-агенты не должны чинить terminal mojibake inline PowerShell encoding-командами вроде `[Console]::OutputEncoding` или `[System.Text.UTF8Encoding]::new($false)`; используйте `read-text.mjs`.
+
 ```sh
 node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.md
 ```
@@ -235,6 +245,7 @@ npm publish --access public
 
 ```sh
 npx agent-io-safety-kit --target /path/to/project --entry AGENTS.md --dry-run
+npx safe-text-read README.md
 npx safe-text-inspect --fail-on-bom --eol lf README.md
 ```
 

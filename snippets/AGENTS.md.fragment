@@ -1,5 +1,5 @@
 <!-- agent-io-safety:begin -->
 ## Shell and text I/O safety
 
-Before the first operation that uses shell, reads or writes text, passes user-controlled data, paths, JSON/YAML/SQL/regex, non-ASCII characters, encodings, BOM, or line endings, read and follow [the central rule]({{RULE_PATH}}). Read the referenced skill files before the matching operation. Do not fix quoting or mojibake by repeated trial and error.
+Before the first operation that uses shell, reads or writes text, passes user-controlled data, paths, JSON/YAML/SQL/regex, non-ASCII characters, encodings, BOM, or line endings, read and follow [the central rule]({{RULE_PATH}}). If terminal output is needed on Windows/PowerShell, read the rule with `node "{{READ_TEXT_PATH}}" "{{RULE_FILE_PATH}}"`, not `Get-Content` or inline OutputEncoding fixes. Read the referenced skill files before the matching operation. Do not fix quoting or mojibake by repeated trial and error.
 <!-- agent-io-safety:end -->

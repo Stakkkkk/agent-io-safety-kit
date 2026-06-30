@@ -28,8 +28,10 @@
 3. Не вкладывать `sh -c`, `cmd /c`, `powershell -Command` или аналог внутрь уже работающей оболочки без неизбежной причины.
 4. Не интерполировать пользовательские значения в командную строку, скрипт, regex или JSON.
 5. Для сложного argv создать UTF-8 JSON-spec и запустить `safe-shell-io/scripts/run-from-spec.mjs`.
-6. Для анализа кодировки, преобразования и ASCII-safe byte replacement использовать скрипты `safe-text-io`; не полагаться на дефолты shell.
-7. После первой ошибки quoting, парсинга или mojibake прекратить перебор вариантов и перейти к детерминированному пути из skills.
+6. Для чтения `RULE.md`, `SKILL.md`, Markdown, JSON или другого UTF-8 текста через terminal output использовать `safe-text-io/scripts/read-text.mjs <path>`; не использовать PowerShell `Get-Content` плюс `[Console]::OutputEncoding`.
+7. Для анализа кодировки, преобразования и ASCII-safe byte replacement использовать скрипты `safe-text-io`; не полагаться на дефолты shell.
+8. Не встраивать `[System.Text.UTF8Encoding]::new($false)` и похожие encoding fixes внутрь `powershell -Command`; вложенный quoting может изменить `$false` или сломать команду.
+9. После первой ошибки quoting, парсинга или mojibake прекратить перебор вариантов и перейти к детерминированному пути из skills.
 
 ## Внешние инструменты
 
@@ -67,6 +69,7 @@
 
 - Всегда учитывать различие Windows PowerShell 5.1 и PowerShell 7+.
 - В Windows PowerShell 5.1 не полагаться на `Get-Content`, `Set-Content`, `Out-File`, `$OutputEncoding`, активную code page и перенаправление без явной проверки формата.
+- Если terminal output PowerShell показывает mojibake при чтении инструкций, не встраивать fixes через `[Console]::OutputEncoding` или `[System.Text.UTF8Encoding]::new($false)`; читать файл через `node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs <path>`.
 - Для совместимых с PowerShell 5.1 `.ps1` предпочитать ASCII-only. Если не-ASCII необходим, явно выбрать поддерживаемую кодировку с BOM и зафиксировать исключение в политике проекта.
 - Использовать `-LiteralPath` для путей и массивы/splatting для аргументов.
 

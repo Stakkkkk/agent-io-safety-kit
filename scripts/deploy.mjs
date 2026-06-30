@@ -280,7 +280,14 @@ async function buildState(options) {
   ).text;
   const ruleRelative = toPosix(path.relative(path.dirname(entryPath), path.join(destinationRoot, "RULE.md")));
   const ruleLink = ruleRelative.startsWith(".") ? ruleRelative : `./${ruleRelative}`;
-  const renderedFragment = template.replaceAll("{{RULE_PATH}}", ruleLink);
+  const ruleFileRelative = toPosix(path.relative(targetRoot, path.join(destinationRoot, "RULE.md")));
+  const ruleFilePath = ruleFileRelative.startsWith(".") ? ruleFileRelative : `./${ruleFileRelative}`;
+  const readTextRelative = toPosix(path.relative(targetRoot, path.join(destinationRoot, "skills", "safe-text-io", "scripts", "read-text.mjs")));
+  const readTextPath = readTextRelative.startsWith(".") ? readTextRelative : `./${readTextRelative}`;
+  const renderedFragment = template
+    .replaceAll("{{RULE_PATH}}", ruleLink)
+    .replaceAll("{{RULE_FILE_PATH}}", ruleFilePath)
+    .replaceAll("{{READ_TEXT_PATH}}", readTextPath);
 
   let currentEntryText = "";
   let entryTextForUpdate = "";

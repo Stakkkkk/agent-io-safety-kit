@@ -19,12 +19,25 @@ description: Inspect, read, create, edit, validate, and transcode text with expl
 ## Выбрать операцию
 
 - Для обычной правки использовать структурированный редактор или patch API.
+- Для чтения Markdown, JSON, rules, skills или другого UTF-8 текста через terminal/tool boundary запускать `scripts/read-text.mjs`.
 - Для диагностики запустить `scripts/inspect-text.mjs`.
 - Для явного преобразования использовать `scripts/transcode-text.mjs`.
 - Для ASCII-only правок в non-UTF-8 или unknown-encoding файлах использовать `scripts/replace-ascii-bytes.mjs`.
 - Для команды, которая генерирует текст, дополнительно применить `safe-shell-io` и указать кодировку stdout.
 
 Не использовать shell redirection, `Set-Content`, `Out-File`, `echo` или неявный `Get-Content`, если их точная байтовая семантика не проверена для текущей версии оболочки.
+
+## Читать текст безопасно
+
+Когда агенту нужно прочитать текст через stdout, особенно на Windows или PowerShell, используйте строгий reader:
+
+```text
+node <skill-dir>/scripts/read-text.mjs <path> [<path> ...]
+```
+
+Он читает bytes напрямую, принимает UTF-8 с BOM и без BOM, отклоняет UTF-16 BOM и невалидный UTF-8, убирает UTF-8 BOM только для вывода и пишет UTF-8 bytes в stdout.
+
+Используйте его для `RULE.md`, `SKILL.md`, Markdown, JSON и других instruction files, когда границей является terminal output. Не чините mojibake через `Get-Content`, `[Console]::OutputEncoding` или inline `powershell -Command` encoding snippets вроде `[System.Text.UTF8Encoding]::new($false)`.
 
 ## Проверить файлы
 

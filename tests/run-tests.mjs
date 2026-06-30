@@ -13,6 +13,7 @@ const deployScript = path.join(packageRoot, "scripts", "deploy.mjs");
 const doctorScript = path.join(packageRoot, "scripts", "doctor.mjs");
 const releaseNotesScript = path.join(packageRoot, "scripts", "release-notes.mjs");
 const runnerScript = path.join(packageRoot, "skills", "safe-shell-io", "scripts", "run-from-spec.mjs");
+const readTextScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "read-text.mjs");
 const inspectScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "inspect-text.mjs");
 const replaceAsciiScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "replace-ascii-bytes.mjs");
 const transcodeScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "transcode-text.mjs");
@@ -69,6 +70,7 @@ async function testDeployment(tempRoot) {
   assert.match(firstText, /agent-io-safety:begin/);
   assert.match(firstText, /\.agent-io-safety\/RULE\.md/);
   assert.match(firstText, /Shell and text I\/O safety/);
+  assert.match(firstText, /node "\.agent-io-safety\/skills\/safe-text-io\/scripts\/read-text\.mjs" "\.agent-io-safety\/RULE\.md"/);
   assert.equal(firstText.replaceAll("\r\n", "").includes("\n"), false, "entry EOL was not preserved");
   const firstManifest = JSON.parse(await readFile(path.join(target, ".agent-io-safety", "MANIFEST.json"), "utf8"));
   assert.equal(firstManifest.language, "en", "default deployment language changed");
@@ -92,6 +94,11 @@ async function testDeployment(tempRoot) {
     await readFile(path.join(target, ".agent-io-safety", "examples", "powershell-ssh-newlines.md"), "utf8"),
     /PowerShell \+ SSH newline/,
     "PowerShell SSH newline example was not deployed",
+  );
+  assert.match(
+    await readFile(path.join(target, ".agent-io-safety", "skills", "safe-text-io", "scripts", "read-text.mjs"), "utf8"),
+    /decodeUtf8Strict/,
+    "safe text reader was not deployed",
   );
   assert.match(
     await readFile(path.join(target, ".agent-io-safety", "examples", "ripgrep-leading-dash.md"), "utf8"),
@@ -228,6 +235,19 @@ async function testDeployment(tempRoot) {
   const emptyTarget = path.join(tempRoot, "empty-project");
   await mkdir(emptyTarget, { recursive: true });
   expectFailure(await run(doctorScript, ["--target", emptyTarget, "--entry", "AGENTS.md"]), "doctor missing install");
+
+  const customDestTarget = path.join(tempRoot, "custom-dest-project");
+  await mkdir(customDestTarget, { recursive: true });
+  expectSuccess(
+    await run(deployScript, ["--target", customDestTarget, "--entry", "AGENTS.md", "--dest", ".agent io safety"]),
+    "custom destination deployment",
+  );
+  const customDestEntry = await readFile(path.join(customDestTarget, "AGENTS.md"), "utf8");
+  assert.match(
+    customDestEntry,
+    /node "\.agent io safety\/skills\/safe-text-io\/scripts\/read-text\.mjs" "\.agent io safety\/RULE\.md"/,
+    "custom destination read-text command was not quoted or rendered",
+  );
 }
 
 async function testRunner(tempRoot) {
@@ -287,14 +307,40 @@ async function testTextTools(tempRoot) {
   const utf16NoBomCyrillic = path.join(textRoot, "utf16-no-bom-cyrillic.txt");
   const psUnsafe = path.join(textRoot, "unsafe.ps1");
   const psBom = path.join(textRoot, "safe.ps1");
+  const invalidUtf8 = path.join(textRoot, "invalid-utf8.md");
 
   await writeFile(good, "Привет\n", "utf8");
   await writeFile(bom, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("Привет\r\n", "utf8")]));
   await writeFile(utf16, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("Привет\r\n", "utf16le")]));
   await writeFile(utf16NoBomAscii, Buffer.from("Hello\r\n", "utf16le"));
   await writeFile(utf16NoBomCyrillic, Buffer.from("Привет\r\n", "utf16le"));
+  await writeFile(invalidUtf8, Buffer.from([0xc3, 0x28]));
   await writeFile(psUnsafe, "Write-Output 'Привет'\n", "utf8");
   await writeFile(psBom, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("Write-Output 'Привет'\r\n", "utf8")]));
+
+  const readGood = await run(readTextScript, [good]);
+  expectSuccess(readGood, "safe text read valid UTF-8");
+  assert.equal(readGood.stdout, "Привет\n");
+
+  const readBom = await run(readTextScript, [bom]);
+  expectSuccess(readBom, "safe text read UTF-8 BOM");
+  assert.equal(readBom.stdout, "Привет\r\n");
+
+  const readMany = await run(readTextScript, [good, bom]);
+  expectSuccess(readMany, "safe text read multiple files");
+  assert.equal(readMany.stdout, "Привет\nПривет\r\n");
+
+  const readInvalid = await run(readTextScript, [invalidUtf8]);
+  expectFailure(readInvalid, "safe text read invalid UTF-8");
+  assert.match(readInvalid.stderr, /invalid UTF-8/);
+
+  const readPartialInvalid = await run(readTextScript, [good, invalidUtf8]);
+  expectFailure(readPartialInvalid, "safe text read does not emit partial output");
+  assert.equal(readPartialInvalid.stdout, "");
+
+  const readUtf16 = await run(readTextScript, [utf16]);
+  expectFailure(readUtf16, "safe text read UTF-16 BOM");
+  assert.match(readUtf16.stderr, /UTF-16 BOM/);
 
   expectSuccess(await run(inspectScript, [good]), "valid UTF-8 inspection");
   expectFailure(await run(inspectScript, ["--fail-on-bom", bom]), "BOM policy");
@@ -385,6 +431,7 @@ async function testCliHelp() {
   expectSuccess(await run(doctorScript, ["--help"]), "doctor help");
   expectSuccess(await run(releaseNotesScript, ["--help"]), "release notes help");
   expectSuccess(await run(runnerScript, ["--help"]), "runner help");
+  expectSuccess(await run(readTextScript, ["--help"]), "read text help");
   expectSuccess(await run(inspectScript, ["--help"]), "inspect help");
   expectSuccess(await run(replaceAsciiScript, ["--help"]), "replace ASCII bytes help");
   expectSuccess(await run(transcodeScript, ["--help"]), "transcode help");
@@ -396,9 +443,10 @@ async function testMetadata() {
   assert.equal(schema.properties.command.type, "string");
 
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
-  assert.equal(packageJson.version, "0.1.4");
+  assert.equal(packageJson.version, "0.1.5");
   assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
+  assert.equal(packageJson.bin["safe-text-read"], "skills/safe-text-io/scripts/read-text.mjs");
   assert.equal(packageJson.bin["safe-text-replace-ascii-bytes"], "skills/safe-text-io/scripts/replace-ascii-bytes.mjs");
   assert.ok(packageJson.files.includes("schemas/"));
   assert.ok(packageJson.files.includes("examples/"));
@@ -410,11 +458,11 @@ async function testMetadata() {
 }
 
 async function testReleaseNotes() {
-  const notes = await run(releaseNotesScript, ["v0.1.4"]);
+  const notes = await run(releaseNotesScript, ["v0.1.5"]);
   expectSuccess(notes, "release notes extraction");
-  assert.match(notes.stdout, /ripgrep recipe/);
-  assert.match(notes.stdout, /Cursor hook review/);
-  assert.doesNotMatch(notes.stdout, /0\.1\.3/);
+  assert.match(notes.stdout, /read-text\.mjs/);
+  assert.match(notes.stdout, /PowerShell encoding commands/);
+  assert.doesNotMatch(notes.stdout, /0\.1\.4/);
 }
 
 async function testCursorHookExample() {
