@@ -25,6 +25,24 @@ Safer patterns:
 - encode data payloads as Base64 or JSON files;
 - pass only stable paths or fixed flags through the remote command line.
 
+If the remote snippet contains pipes, `$`, regex, quotes, `sed`, `awk`, or `grep`, treat it as a script, not as an SSH one-liner. Local argv arrays do not remove the remote shell parser; `ssh host command args...` is still interpreted remotely.
+
+## Windows to remote Bash
+
+PowerShell here-strings and Windows-authored files can carry CRLF into `ssh host bash -s`. Normalize scripts to LF before sending:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs host script.sh
+```
+
+Use `--print-normalized` for a local dry check:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs --print-normalized host script.sh
+```
+
+The helper reads the script as strict UTF-8, rejects UTF-16/invalid UTF-8, converts `CRLF`/`CR` to `LF`, and sends bytes to `ssh host bash -s` without a local shell.
+
 ## PowerShell/SSH newline escapes
 
 Do not pass newlines as `\n` through PowerShell → SSH → remote shell quoting. Depending on the layers, the remote side may see a literal backslash-n, a real newline in the wrong place, or output such as `n...n`.

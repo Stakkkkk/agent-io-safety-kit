@@ -25,6 +25,67 @@ node skills/safe-text-io/scripts/read-text.mjs path/to/file.md
 5. при необходимости посмотрите hex bytes или прочитайте файл другим известным decoder;
 6. считайте terminal/tool output подозрительным, пока byte-level проверки не подтвердят повреждение.
 
+## Windows PowerShell + SSH + UTF-8 + secrets
+
+Это зона повышенного риска: данные проходят через PowerShell, Node.js, SSH, remote shell и terminal rendering.
+
+### PowerShell to Node stdin может повредить non-ASCII literals
+
+Если inline Node.js script передаётся через PowerShell stdin, кириллические пути или строковые literals могут приехать как `????`.
+
+Не кладите non-ASCII пути или literals прямо в inline scripts. Предпочитайте:
+
+- настоящий `.mjs` script file;
+- UTF-8 JSON spec с args/stdin;
+- Base64 для opaque payload;
+- ASCII anchors плюс filesystem/API lookup, если точное имя файла может быть mojibake в terminal output.
+
+Используйте:
+
+```sh
+node skills/safe-shell-io/scripts/run-node-utf8.mjs --spec node-task.json
+```
+
+### PowerShell here-strings могут отправить CRLF в remote Bash
+
+Script, отправленный из Windows here-string в `ssh host bash -s`, может сохранить `\r\n`. Remote tools вроде `sed`, `awk` или shell parsers тогда получают лишний `\r`.
+
+Перед отправкой нормализуйте к LF:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs host script.sh
+```
+
+`--print-normalized` показывает точный script перед SSH.
+
+### Сложные SSH command strings не являются одним безопасным слоем
+
+Pipes, `$`, regex, кавычки, `sed`, `awk` и `grep` внутри `ssh host "..."` проходят через несколько shells. Даже локальный argv array не убирает remote shell layer: `ssh host command args...` всё равно собирается для remote shell execution.
+
+Для сложных remote snippets отправляйте script через stdin/file/spec, а не one-line SSH command.
+
+### Bash `set -u` раскрывает `$...` внутри double quotes
+
+Под `set -u` команда вроде `grep "map $http_authorization"` может попытаться раскрыть unset Bash variable. Для nginx или shell-looking config text:
+
+- предпочитайте single quotes: `grep 'map $http_authorization'`;
+- по возможности используйте fixed-string matching;
+- сложные проверки кладите в script file вместо nested quoting.
+
+### Mojibake из `rg --files` — только display evidence
+
+Кириллические имена файлов, показанные как `????` в terminal output, не доказывают повреждение filesystem bytes или содержимого файлов. Проверяйте через filesystem APIs, `inspect-text.mjs` или `read-text.mjs` до любых изменений.
+
+### Smoke tests должны редактировать secrets
+
+Smoke tests, которые читают `Authorization` или `Bearer`, должны печатать только status, counts, server names и несекретную metadata. Стандартная редекция логов:
+
+```js
+const safe = text.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer <redacted>");
+```
+
+Никогда не печатайте raw tokens из MCP, HTTP или service configs.
+
 ## `ssh -n` полезен, но не внутри `rsync -e`
 
 `ssh -n` запрещает SSH-команде читать stdin. Это помогает вложенным read-only SSH-командам, которые не должны съесть stdin родительского скрипта.

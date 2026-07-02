@@ -25,6 +25,7 @@ Hooks подходят для механических границ:
 - ask или deny для SSH-команд с literal `\n` escapes, особенно из PowerShell;
 - deny для PowerShell `Select-Object -Index 94..112`; требовать `-Index (94..112)` или `-Skip/-First`;
 - ask для `rg "-pattern"` до `--`; требовать `rg -- "-pattern"` или `rg --fixed-strings -- "-literal"` для literal user text;
+- ask для Bash `set -u` / `set -o nounset` с `$...` внутри double quotes; требовать single quotes, fixed-string search или script file для config text;
 - после правок text files запускать `skills/safe-text-io/scripts/inspect-text.mjs`, если hook payload даёт достаточно file context.
 
 ## Шаблон конфигурации

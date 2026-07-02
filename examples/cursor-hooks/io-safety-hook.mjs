@@ -64,6 +64,12 @@ function hasPowerShellBareRange(command) {
   return /Select-Object\s+-Index\s+\d+\.\.\d+/i.test(command);
 }
 
+function hasSetUNounsetWithDollarInDoubleQuotes(command) {
+  const hasNounset = /\bset\s+-[A-Za-z]*u[A-Za-z]*(?:\s|;|&&|\|\||$)/.test(command) ||
+    /\bset\s+-o\s+nounset(?:\s|;|&&|\|\||$)/.test(command);
+  return hasNounset && /"[^"]*\$[A-Za-z_][A-Za-z0-9_]*[^"]*"/.test(command);
+}
+
 function isRipgrepExecutable(value) {
   const baseName = value.replaceAll("\\", "/").split("/").pop().toLowerCase();
   return baseName === "rg" || baseName === "rg.exe";
@@ -169,6 +175,13 @@ function checkBeforeShellExecution(payload) {
     return ask(
       "This rg command contains a quoted value that starts with - before an option terminator.",
       "If this is the search pattern, use rg -- \"-pattern\". For literal user text, use rg --fixed-strings -- \"-literal\".",
+    );
+  }
+
+  if (hasSetUNounsetWithDollarInDoubleQuotes(command)) {
+    return ask(
+      "This command enables Bash nounset and contains a $variable-looking value inside double quotes.",
+      "Under set -u, config text such as nginx $http_authorization can expand as an unset shell variable. Use single quotes, fixed-string search, or move the check into a script file.",
     );
   }
 

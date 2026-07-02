@@ -29,12 +29,48 @@ Before SSH, rsync, SFTP, remote shell, here-doc, or long-running remote operatio
 Apply these routing rules:
 
 - use `ssh -n` only when the SSH process must not consume parent stdin; do not put `ssh -n` inside `rsync -e`;
+- do not send non-ASCII inline Node.js code or literals through PowerShell stdin; use `scripts/run-node-utf8.mjs --spec <spec.json>` or a script file plus JSON/Base64 payload;
 - do not pass newlines as `\n` through PowerShell/SSH quoting; use repeated fixed `echo` only for tiny fixed text, otherwise upload/stream data or use JSON/Base64;
+- when sending Bash from Windows to SSH, normalize CRLF to LF first; prefer `scripts/remote-bash.mjs <host> <script>`;
+- if an SSH command contains pipes, `$`, regex, quotes, `sed`, `awk`, or `grep`, do not send it as one command string; use a script via stdin/file/spec;
+- remember that `ssh host command args...` still runs through the remote shell; argv safety on the local side does not protect complex remote snippets;
 - for complex remote scripts, upload a script file, stream bytes through stdin, or pass data as a file/Base64 payload instead of building multi-layer here-doc strings;
+- under Bash `set -u`, do not put `$...` patterns such as nginx variables inside double quotes; use single quotes, fixed-string search, or a script file;
 - for long SSH/rsync work, prefer remote supervision plus a log and polling instead of keeping the job tied to the local client;
 - for PowerShell ranges, read `../../examples/powershell-select-object.md` and use `-Index (94..112)` or `-Skip/-First`;
 - for PowerShell/SSH newline escapes, read `../../examples/powershell-ssh-newlines.md`;
 - before embedding a script in a host-language string, read `../../examples/remote-script-boundaries.md`.
+
+## Run Node with UTF-8 data
+
+Do not paste non-ASCII paths or JavaScript literals into inline Node scripts sent through PowerShell stdin. Put code in a `.mjs` file and pass data through a UTF-8 JSON spec:
+
+```text
+node <skill-dir>/scripts/run-node-utf8.mjs --spec <spec.json>
+```
+
+Spec shape:
+
+```json
+{
+  "script": "scripts/find-instruction.mjs",
+  "args": ["Инструкция_агента.md"],
+  "stdin": "{\"anchor\":\"Instruction\"}",
+  "cwd": "."
+}
+```
+
+Relative `script` and `cwd` are resolved from the spec directory. The helper runs Node with `shell: false`, sends stdin as UTF-8 bytes, and strictly decodes child stdout/stderr as UTF-8.
+
+## Run remote Bash safely
+
+When a Bash script is composed or stored on Windows, do not stream a PowerShell here-string directly to `ssh host bash -s`; CRLF can reach the remote parser. Use:
+
+```text
+node <skill-dir>/scripts/remote-bash.mjs <host> <script>
+```
+
+The helper reads the script as strict UTF-8, normalizes `CRLF`/`CR` to `LF`, and runs `ssh <host> bash -s` with the normalized bytes on stdin. Use `--print-normalized` to inspect the exact script bytes before sending.
 
 ## Run through a spec
 

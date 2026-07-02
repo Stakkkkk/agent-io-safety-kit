@@ -28,6 +28,8 @@ node skills/safe-text-io/scripts/inspect-text.mjs examples/safe-shell-command.js
 
 ## Remote and PowerShell boundaries
 
+- `skills/safe-shell-io/scripts/run-node-utf8.mjs` runs a Node script file or UTF-8 JSON spec instead of inline Node through PowerShell stdin.
+- `skills/safe-shell-io/scripts/remote-bash.mjs` normalizes Windows CRLF to LF before streaming Bash to `ssh host bash -s`.
 - `windows-powershell-ssh.md` shows a fixed remote command with script bytes sent through stdin.
 - `powershell-ssh-newlines.md` explains why `\n` should not be trusted across PowerShell → SSH → remote shell quoting.
 - `powershell-select-object.md` shows safe range syntax for `Select-Object -Index`.
@@ -36,7 +38,7 @@ node skills/safe-text-io/scripts/inspect-text.mjs examples/safe-shell-command.js
 
 ## Hook examples
 
-`cursor-hooks/` contains a dependency-free Cursor `beforeShellExecution` hook example. It blocks `rsync -e "ssh -n ..."`, blocks bare PowerShell ranges, and asks for review when SSH commands contain literal `\n` newline escapes or obvious `rg "-pattern"` searches without `--`.
+`cursor-hooks/` contains a dependency-free Cursor `beforeShellExecution` hook example. It blocks `rsync -e "ssh -n ..."`, blocks bare PowerShell ranges, and asks for review when SSH commands contain literal `\n` newline escapes, obvious `rg "-pattern"` searches without `--`, or Bash nounset commands with `$...` inside double quotes.
 
 ## Agent instruction snippets
 

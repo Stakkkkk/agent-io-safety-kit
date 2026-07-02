@@ -37,12 +37,13 @@ The example config runs:
 node .agent-io-safety/examples/cursor-hooks/io-safety-hook.mjs --event beforeShellExecution
 ```
 
-It currently catches four field-tested traps:
+It currently catches five field-tested traps:
 
 - `rsync -e "ssh -n ..."` — denied because rsync uses SSH stdin/stdout as its protocol;
 - `Select-Object -Index 94..112` — denied; use `-Index (94..112)` or `-Skip/-First`;
 - SSH commands containing literal `\n` escapes — ask for review because PowerShell/SSH quoting can produce remote `n...n` output;
-- `rg "-pattern"` before `--` — ask for review because ripgrep treats leading-dash values as options unless option parsing is terminated.
+- `rg "-pattern"` before `--` — ask for review because ripgrep treats leading-dash values as options unless option parsing is terminated;
+- Bash `set -u` / `set -o nounset` with `$...` inside double quotes — ask for review because config text such as nginx variables can expand as unset shell variables.
 
 ## Cloud agents
 

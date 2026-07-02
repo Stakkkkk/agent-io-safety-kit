@@ -37,12 +37,13 @@ cp .agent-io-safety/examples/cursor-hooks/hooks.json .cursor/hooks.json
 node .agent-io-safety/examples/cursor-hooks/io-safety-hook.mjs --event beforeShellExecution
 ```
 
-Сейчас он ловит четыре практические ловушки:
+Сейчас он ловит пять практических ловушек:
 
 - `rsync -e "ssh -n ..."` — deny, потому что rsync использует SSH stdin/stdout как protocol channel;
 - `Select-Object -Index 94..112` — deny; используйте `-Index (94..112)` или `-Skip/-First`;
 - SSH-команды с literal `\n` escapes — ask for review, потому что PowerShell/SSH quoting может дать remote output вида `n...n`;
-- `rg "-pattern"` до `--` — ask for review, потому что ripgrep воспринимает значения с начальным `-` как options, пока option parsing не остановлен.
+- `rg "-pattern"` до `--` — ask for review, потому что ripgrep воспринимает значения с начальным `-` как options, пока option parsing не остановлен;
+- Bash `set -u` / `set -o nounset` с `$...` внутри double quotes — ask for review, потому что config text вроде nginx variables может раскрыться как unset shell variable.
 
 ## Cloud agents
 

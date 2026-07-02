@@ -16,7 +16,7 @@ Use it when an agent frequently:
 ## What is included
 
 - `RULE.md` — the central policy for safe shell and text I/O.
-- `skills/safe-shell-io` — instructions and a spec runner for exact `argv` execution.
+- `skills/safe-shell-io` — instructions and helpers for exact `argv`, UTF-8 Node runs, and remote Bash execution.
 - `skills/safe-text-io` — instructions and utilities for safe text reads, inspection, transcoding, and ASCII-safe byte replacement.
 - `schemas/command-spec.schema.json` — JSON Schema for command specs.
 - `scripts/deploy.mjs` — an idempotent installer for target projects.
@@ -181,6 +181,18 @@ node skills/safe-shell-io/scripts/run-from-spec.mjs command.json
 
 The runner uses `spawn` with `shell: false` and passes every argument as a separate `argv` item.
 
+For Node.js work that needs non-ASCII data across a Windows/PowerShell boundary, keep code in a script file and pass data through a UTF-8 JSON spec:
+
+```sh
+node skills/safe-shell-io/scripts/run-node-utf8.mjs --spec node-task.json
+```
+
+For Bash sent from Windows to SSH, normalize to LF and stream the script through stdin:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs host script.sh
+```
+
 ## Example: text inspection
 
 Safely read Markdown, JSON, rules, or skills through a terminal/tool boundary:
@@ -229,7 +241,7 @@ The kit does not replace project-specific or domain-specific instructions. It si
 
 ## Field-tested recipes
 
-See [`docs/field-notes.md`](docs/field-notes.md), [`docs/remote-io-recipes.md`](docs/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md), and [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md) for cases such as terminal mojibake with valid UTF-8 bytes, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, remote here-doc escaping, Paramiko SFTP rename behavior, long SSH jobs, and floating Docker tags.
+See [`docs/field-notes.md`](docs/field-notes.md), [`docs/remote-io-recipes.md`](docs/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md), and [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md) for cases such as terminal mojibake with valid UTF-8 bytes, PowerShell → Node UTF-8 literals, Windows CRLF into remote Bash, complex SSH commands, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, remote here-doc escaping, Paramiko SFTP rename behavior, long SSH jobs, secret redaction, and floating Docker tags.
 
 ## Optional hook enforcement
 
@@ -247,6 +259,8 @@ Useful local commands:
 
 ```sh
 npx agent-io-safety-kit --target /path/to/project --entry AGENTS.md --dry-run
+npx safe-shell-run-node-utf8 --spec node-task.json
+npx safe-shell-remote-bash host script.sh
 npx safe-text-read README.md
 npx safe-text-inspect --fail-on-bom --eol lf README.md
 ```

@@ -14,7 +14,7 @@
 ## Что внутри
 
 - `RULE.md` — центральная политика безопасного shell и текстового I/O.
-- `skills/safe-shell-io` — инструкция и runner для запуска команд с точной передачей `argv`.
+- `skills/safe-shell-io` — инструкция и helpers для точного `argv`, UTF-8 Node runs и remote Bash execution.
 - `skills/safe-text-io` — инструкция и утилиты для безопасного чтения, проверки, преобразования и ASCII-safe byte replacement в текстовых/legacy-файлах.
 - `schemas/command-spec.schema.json` — JSON Schema для command spec.
 - `scripts/deploy.mjs` — идемпотентный установщик в целевой проект.
@@ -179,6 +179,18 @@ node skills/safe-shell-io/scripts/run-from-spec.mjs command.json
 
 Runner использует `spawn` с `shell: false` и передаёт каждый аргумент отдельно.
 
+Для Node.js задач, где non-ASCII данные проходят через Windows/PowerShell boundary, держите код в script file и передавайте данные через UTF-8 JSON spec:
+
+```sh
+node skills/safe-shell-io/scripts/run-node-utf8.mjs --spec node-task.json
+```
+
+Для Bash, отправляемого из Windows в SSH, нормализуйте LF и стримьте script через stdin:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs host script.sh
+```
+
 ## Пример: проверка текста
 
 Безопасно прочитать Markdown, JSON, rules или skills через terminal/tool boundary:
@@ -227,7 +239,7 @@ node skills/safe-text-io/scripts/replace-ascii-bytes.mjs --input legacy.sh --in-
 
 ## Рецепты из практики
 
-См. [`docs/ru/field-notes.md`](docs/ru/field-notes.md), [`docs/ru/remote-io-recipes.md`](docs/ru/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md) и [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md): там разобраны mojibake при корректных UTF-8 байтах, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, escape-слои remote here-doc, Paramiko SFTP rename, долгие SSH-задачи и риск плавающих Docker tags.
+См. [`docs/ru/field-notes.md`](docs/ru/field-notes.md), [`docs/ru/remote-io-recipes.md`](docs/ru/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md) и [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md): там разобраны mojibake при корректных UTF-8 байтах, PowerShell → Node UTF-8 literals, Windows CRLF в remote Bash, сложные SSH commands, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, escape-слои remote here-doc, Paramiko SFTP rename, долгие SSH-задачи, secret redaction и риск плавающих Docker tags.
 
 ## Optional hook enforcement
 
@@ -245,6 +257,8 @@ npm publish --access public
 
 ```sh
 npx agent-io-safety-kit --target /path/to/project --entry AGENTS.md --dry-run
+npx safe-shell-run-node-utf8 --spec node-task.json
+npx safe-shell-remote-bash host script.sh
 npx safe-text-read README.md
 npx safe-text-inspect --fail-on-bom --eol lf README.md
 ```

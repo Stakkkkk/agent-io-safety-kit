@@ -12,7 +12,9 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const deployScript = path.join(packageRoot, "scripts", "deploy.mjs");
 const doctorScript = path.join(packageRoot, "scripts", "doctor.mjs");
 const releaseNotesScript = path.join(packageRoot, "scripts", "release-notes.mjs");
+const remoteBashScript = path.join(packageRoot, "skills", "safe-shell-io", "scripts", "remote-bash.mjs");
 const runnerScript = path.join(packageRoot, "skills", "safe-shell-io", "scripts", "run-from-spec.mjs");
+const runNodeUtf8Script = path.join(packageRoot, "skills", "safe-shell-io", "scripts", "run-node-utf8.mjs");
 const readTextScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "read-text.mjs");
 const inspectScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "inspect-text.mjs");
 const replaceAsciiScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "replace-ascii-bytes.mjs");
@@ -99,6 +101,16 @@ async function testDeployment(tempRoot) {
     await readFile(path.join(target, ".agent-io-safety", "skills", "safe-text-io", "scripts", "read-text.mjs"), "utf8"),
     /decodeUtf8Strict/,
     "safe text reader was not deployed",
+  );
+  assert.match(
+    await readFile(path.join(target, ".agent-io-safety", "skills", "safe-shell-io", "scripts", "run-node-utf8.mjs"), "utf8"),
+    /run-node-utf8/,
+    "safe Node UTF-8 runner was not deployed",
+  );
+  assert.match(
+    await readFile(path.join(target, ".agent-io-safety", "skills", "safe-shell-io", "scripts", "remote-bash.mjs"), "utf8"),
+    /remote-bash/,
+    "remote Bash helper was not deployed",
   );
   assert.match(
     await readFile(path.join(target, ".agent-io-safety", "examples", "ripgrep-leading-dash.md"), "utf8"),
@@ -297,6 +309,63 @@ async function testRunner(tempRoot) {
   assert.deepEqual(examplePayload.args.slice(0, 2), ["path with spaces/file.txt", "double quote: \""]);
 }
 
+async function testShellHelpers(tempRoot) {
+  const helperRoot = path.join(tempRoot, "helpers");
+  await mkdir(helperRoot, { recursive: true });
+
+  const nodeScript = path.join(helperRoot, "print-payload.mjs");
+  await writeFile(
+    nodeScript,
+    "const chunks=[];for await(const chunk of process.stdin)chunks.push(chunk);" +
+      "process.stdout.write(JSON.stringify({args:process.argv.slice(2),stdin:Buffer.concat(chunks).toString('utf8')}));\n",
+    "utf8",
+  );
+  const nodeSpec = path.join(helperRoot, "node-task.json");
+  await writeFile(nodeSpec, `${JSON.stringify({
+    script: "print-payload.mjs",
+    args: ["Инструкция_агента.md", "literal $http_authorization"],
+    stdin: "{\"anchor\":\"Инструкция\"}\n",
+  }, null, 2)}\n`, "utf8");
+
+  const nodeResult = await run(runNodeUtf8Script, ["--spec", nodeSpec]);
+  expectSuccess(nodeResult, "run-node-utf8 spec");
+  assert.deepEqual(JSON.parse(nodeResult.stdout), {
+    args: ["Инструкция_агента.md", "literal $http_authorization"],
+    stdin: "{\"anchor\":\"Инструкция\"}\n",
+  });
+
+  const nodeDirect = await run(runNodeUtf8Script, [nodeScript, "--", "Привет"]);
+  expectSuccess(nodeDirect, "run-node-utf8 direct script");
+  assert.deepEqual(JSON.parse(nodeDirect.stdout).args, ["Привет"]);
+
+  const remoteScript = path.join(helperRoot, "remote-script.sh");
+  await writeFile(remoteScript, "sed -n '1,260p'\r\ngrep 'map $http_authorization'\r\n", "utf8");
+  const normalized = await run(remoteBashScript, ["--print-normalized", "example.org", remoteScript]);
+  expectSuccess(normalized, "remote-bash print normalized");
+  assert.equal(normalized.stdout, "sed -n '1,260p'\ngrep 'map $http_authorization'\n");
+  assert.equal(normalized.stdout.includes("\r"), false);
+
+  const fakeSsh = path.join(helperRoot, "fake-ssh.mjs");
+  await writeFile(
+    fakeSsh,
+    "const chunks=[];for await(const chunk of process.stdin)chunks.push(chunk);" +
+      "process.stdout.write(JSON.stringify({args:process.argv.slice(2),stdin:Buffer.concat(chunks).toString('utf8')}));\n",
+    "utf8",
+  );
+  const remoteRun = await run(remoteBashScript, ["--ssh", process.execPath, "--ssh-arg", fakeSsh, "example.org", remoteScript]);
+  expectSuccess(remoteRun, "remote-bash fake ssh");
+  assert.deepEqual(JSON.parse(remoteRun.stdout), {
+    args: ["example.org", "bash", "-s"],
+    stdin: "sed -n '1,260p'\ngrep 'map $http_authorization'\n",
+  });
+
+  const utf16Script = path.join(helperRoot, "utf16.sh");
+  await writeFile(utf16Script, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("echo nope\n", "utf16le")]));
+  const remoteUtf16 = await run(remoteBashScript, ["--print-normalized", "example.org", utf16Script]);
+  expectFailure(remoteUtf16, "remote-bash rejects UTF-16");
+  assert.match(remoteUtf16.stderr, /UTF-16 BOM/);
+}
+
 async function testTextTools(tempRoot) {
   const textRoot = path.join(tempRoot, "text");
   await mkdir(textRoot, { recursive: true });
@@ -430,7 +499,9 @@ async function testCliHelp() {
   expectSuccess(await run(deployScript, ["--help"]), "deploy help");
   expectSuccess(await run(doctorScript, ["--help"]), "doctor help");
   expectSuccess(await run(releaseNotesScript, ["--help"]), "release notes help");
+  expectSuccess(await run(remoteBashScript, ["--help"]), "remote bash help");
   expectSuccess(await run(runnerScript, ["--help"]), "runner help");
+  expectSuccess(await run(runNodeUtf8Script, ["--help"]), "run node UTF-8 help");
   expectSuccess(await run(readTextScript, ["--help"]), "read text help");
   expectSuccess(await run(inspectScript, ["--help"]), "inspect help");
   expectSuccess(await run(replaceAsciiScript, ["--help"]), "replace ASCII bytes help");
@@ -443,9 +514,11 @@ async function testMetadata() {
   assert.equal(schema.properties.command.type, "string");
 
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
-  assert.equal(packageJson.version, "0.1.5");
+  assert.equal(packageJson.version, "0.1.6");
   assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
+  assert.equal(packageJson.bin["safe-shell-remote-bash"], "skills/safe-shell-io/scripts/remote-bash.mjs");
+  assert.equal(packageJson.bin["safe-shell-run-node-utf8"], "skills/safe-shell-io/scripts/run-node-utf8.mjs");
   assert.equal(packageJson.bin["safe-text-read"], "skills/safe-text-io/scripts/read-text.mjs");
   assert.equal(packageJson.bin["safe-text-replace-ascii-bytes"], "skills/safe-text-io/scripts/replace-ascii-bytes.mjs");
   assert.ok(packageJson.files.includes("schemas/"));
@@ -458,11 +531,12 @@ async function testMetadata() {
 }
 
 async function testReleaseNotes() {
-  const notes = await run(releaseNotesScript, ["v0.1.5"]);
+  const notes = await run(releaseNotesScript, ["v0.1.6"]);
   expectSuccess(notes, "release notes extraction");
-  assert.match(notes.stdout, /read-text\.mjs/);
-  assert.match(notes.stdout, /PowerShell encoding commands/);
-  assert.doesNotMatch(notes.stdout, /0\.1\.4/);
+  assert.match(notes.stdout, /run-node-utf8\.mjs/);
+  assert.match(notes.stdout, /remote-bash\.mjs/);
+  assert.match(notes.stdout, /secret redaction/);
+  assert.doesNotMatch(notes.stdout, /0\.1\.5/);
 }
 
 async function testCursorHookExample() {
@@ -502,6 +576,12 @@ async function testCursorHookExample() {
   expectSuccess(rgSafe, "Cursor hook ripgrep leading dash with --");
   assert.equal(JSON.parse(rgSafe.stdout).permission, "allow");
 
+  const nounset = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: 'set -u; grep "map $http_authorization" nginx.conf', cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(nounset, "Cursor hook Bash nounset dollar in double quotes");
+  assert.equal(JSON.parse(nounset.stdout).permission, "ask");
+
   const safe = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
     stdin: `${JSON.stringify({ command: "node --version", cwd: packageRoot, sandbox: false })}\n`,
   });
@@ -528,6 +608,7 @@ try {
   await testCursorHookExample();
   await testDeployment(tempRoot);
   await testRunner(tempRoot);
+  await testShellHelpers(tempRoot);
   await testTextTools(tempRoot);
   process.stdout.write("ALL TESTS PASSED\n");
 } finally {

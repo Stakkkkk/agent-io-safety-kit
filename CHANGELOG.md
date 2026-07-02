@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 Nothing yet.
 
+## 0.1.6 - 2026-07-02
+
+- Added `run-node-utf8.mjs` and `remote-bash.mjs` helpers for Windows/PowerShell UTF-8 and SSH boundaries.
+- Added field notes for PowerShell → Node literals, Windows CRLF into remote Bash, complex SSH command strings, remote-shell argv limits, Bash `set -u` with nginx-style `$...` variables, mojibake in filename output, and secret redaction.
+- Added hook guidance for Bash nounset with `$...` inside double quotes.
+
 ## 0.1.5 - 2026-07-01
 
 - Added `safe-text-io/scripts/read-text.mjs` for strict UTF-8 reads through terminal/tool boundaries.

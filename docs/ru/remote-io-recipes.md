@@ -25,6 +25,24 @@ command = f"ssh host \"python3 - <<'PY'\nprint('{user_text}')\nPY\""
 - data payload через Base64 или JSON files;
 - через remote command line передавать только стабильные пути или фиксированные flags.
 
+Если remote snippet содержит pipes, `$`, regex, кавычки, `sed`, `awk` или `grep`, считайте его скриптом, а не SSH one-liner. Локальный argv array не убирает remote shell parser: `ssh host command args...` всё равно интерпретируется удалённо.
+
+## Windows to remote Bash
+
+PowerShell here-strings и файлы, созданные на Windows, могут протащить CRLF в `ssh host bash -s`. Перед отправкой нормализуйте scripts к LF:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs host script.sh
+```
+
+Для локальной проверки используйте `--print-normalized`:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs --print-normalized host script.sh
+```
+
+Helper читает script как strict UTF-8, отклоняет UTF-16/invalid UTF-8, преобразует `CRLF`/`CR` в `LF` и отправляет bytes в `ssh host bash -s` без local shell.
+
 ## PowerShell/SSH newline escapes
 
 Не передавайте переводы строк как `\n` через PowerShell → SSH → remote shell quoting. В зависимости от слоёв remote side может увидеть literal backslash-n, реальный перевод строки не в том месте или output вида `n...n`.

@@ -25,6 +25,7 @@ Start with these checks:
 - ask or deny SSH commands containing literal `\n` escapes, especially from PowerShell;
 - deny PowerShell `Select-Object -Index 94..112`; require `-Index (94..112)` or `-Skip/-First`;
 - ask on `rg "-pattern"` before `--`; require `rg -- "-pattern"` or `rg --fixed-strings -- "-literal"` for literal user text;
+- ask on Bash `set -u` / `set -o nounset` with `$...` inside double quotes; require single quotes, fixed-string search, or a script file for config text;
 - after text-file edits, run `skills/safe-text-io/scripts/inspect-text.mjs` where the hook payload provides enough file context.
 
 ## Configuration template

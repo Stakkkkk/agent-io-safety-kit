@@ -29,12 +29,48 @@ description: Execute external commands with exact argv semantics and without acc
 Применяйте эти правила маршрутизации:
 
 - используйте `ssh -n` только когда SSH-процесс не должен читать stdin родительского процесса; не кладите `ssh -n` внутрь `rsync -e`;
+- не передавайте non-ASCII inline Node.js code или literals через PowerShell stdin; используйте `scripts/run-node-utf8.mjs --spec <spec.json>` или script file плюс JSON/Base64 payload;
 - не передавайте переводы строк как `\n` через PowerShell/SSH quoting; repeated fixed `echo` допустим только для маленького fixed text, иначе загружайте/стримьте данные или используйте JSON/Base64;
+- при отправке Bash из Windows в SSH сначала нормализуйте CRLF в LF; предпочитайте `scripts/remote-bash.mjs <host> <script>`;
+- если SSH command содержит pipes, `$`, regex, кавычки, `sed`, `awk` или `grep`, не отправляйте её одной command string; используйте script via stdin/file/spec;
+- помните, что `ssh host command args...` всё равно проходит через remote shell; локальная argv-безопасность не защищает сложные remote snippets;
 - для сложных remote scripts загружайте script file, передавайте байты через stdin или передавайте данные файлом/Base64 payload вместо многоуровневых here-doc strings;
+- под Bash `set -u` не кладите `$...` patterns вроде nginx variables в double quotes; используйте single quotes, fixed-string search или script file;
 - для долгих SSH/rsync-задач предпочитайте remote supervision + log + polling, а не привязку процесса к локальному клиенту;
 - для PowerShell ranges прочитайте `../../examples/powershell-select-object.md` и используйте `-Index (94..112)` или `-Skip/-First`;
 - для PowerShell/SSH newline escapes прочитайте `../../examples/powershell-ssh-newlines.md`;
 - перед встраиванием скрипта в строку host-языка прочитайте `../../examples/remote-script-boundaries.md`.
+
+## Запускать Node с UTF-8 данными
+
+Не вставляйте non-ASCII пути или JavaScript literals в inline Node scripts, переданные через PowerShell stdin. Код держите в `.mjs` файле, данные передавайте через UTF-8 JSON spec:
+
+```text
+node <skill-dir>/scripts/run-node-utf8.mjs --spec <spec.json>
+```
+
+Форма spec:
+
+```json
+{
+  "script": "scripts/find-instruction.mjs",
+  "args": ["Инструкция_агента.md"],
+  "stdin": "{\"anchor\":\"Instruction\"}",
+  "cwd": "."
+}
+```
+
+Относительные `script` и `cwd` разрешаются от каталога spec. Helper запускает Node с `shell: false`, отправляет stdin как UTF-8 bytes и строго декодирует child stdout/stderr как UTF-8.
+
+## Запускать remote Bash безопасно
+
+Если Bash script создан или хранится на Windows, не стримьте PowerShell here-string напрямую в `ssh host bash -s`: CRLF может попасть в remote parser. Используйте:
+
+```text
+node <skill-dir>/scripts/remote-bash.mjs <host> <script>
+```
+
+Helper читает script как strict UTF-8, нормализует `CRLF`/`CR` в `LF` и запускает `ssh <host> bash -s`, передавая нормализованные bytes в stdin. `--print-normalized` показывает точный script перед отправкой.
 
 ## Запустить через spec
 

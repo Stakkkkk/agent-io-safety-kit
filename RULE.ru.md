@@ -31,7 +31,9 @@
 6. Для чтения `RULE.md`, `SKILL.md`, Markdown, JSON или другого UTF-8 текста через terminal output использовать `safe-text-io/scripts/read-text.mjs <path>`; не использовать PowerShell `Get-Content` плюс `[Console]::OutputEncoding`.
 7. Для анализа кодировки, преобразования и ASCII-safe byte replacement использовать скрипты `safe-text-io`; не полагаться на дефолты shell.
 8. Не встраивать `[System.Text.UTF8Encoding]::new($false)` и похожие encoding fixes внутрь `powershell -Command`; вложенный quoting может изменить `$false` или сломать команду.
-9. После первой ошибки quoting, парсинга или mojibake прекратить перебор вариантов и перейти к детерминированному пути из skills.
+9. Не передавать non-ASCII inline Node.js code или literals через PowerShell stdin; использовать `safe-shell-io/scripts/run-node-utf8.mjs --spec <spec.json>` или script file плюс JSON/Base64 payload.
+10. Не отправлять сложные SSH commands с pipes, `$`, regex, кавычками, `sed`, `awk` или `grep` одной command string; использовать `safe-shell-io/scripts/remote-bash.mjs`, stdin, файл или spec.
+11. После первой ошибки quoting, парсинга или mojibake прекратить перебор вариантов и перейти к детерминированному пути из skills.
 
 ## Внешние инструменты
 
@@ -53,13 +55,16 @@
 
 - terminal/tool output показывает mojibake, но байты файла могут быть корректными;
 - используются SSH, rsync, SFTP, remote shell, here-doc или долгие remote-операции;
+- Windows/PowerShell передаёт Node.js scripts или данные с non-ASCII текстом;
+- Windows/PowerShell отправляет Bash в SSH, особенно из here-string или CRLF source file;
+- SSH command strings содержат pipes, `$`, regex, кавычки, `sed`, `awk`, `grep` или nginx variables под `set -u`;
 - PowerShell/SSH command strings содержат `\n` newline escapes;
 - используются PowerShell ranges или выборка окон строк;
 - CLI search patterns или user-controlled positional values могут начинаться с `-`, особенно `rg` patterns;
 - в non-UTF-8 файле нужна ASCII-only замена байтов;
 - мигрируются или сохраняются плавающие Docker tags.
 
-Читайте `docs/ru/remote-io-recipes.md` перед составлением многоуровневых remote-команд. Используйте `examples/powershell-select-object.md` для PowerShell range syntax, `examples/powershell-ssh-newlines.md` для PowerShell/SSH newline escaping, `examples/ripgrep-leading-dash.md` для `rg -- "-pattern"` и `examples/remote-script-boundaries.md` перед встраиванием скриптов в строки host-языка.
+Читайте `docs/ru/remote-io-recipes.md` перед составлением многоуровневых remote-команд. Используйте `safe-shell-io/scripts/run-node-utf8.mjs` для Node scripts/data, проходящих через PowerShell, `safe-shell-io/scripts/remote-bash.mjs` для Bash scripts, проходящих из Windows в SSH, `examples/powershell-select-object.md` для PowerShell range syntax, `examples/powershell-ssh-newlines.md` для PowerShell/SSH newline escaping, `examples/ripgrep-leading-dash.md` для `rg -- "-pattern"` и `examples/remote-script-boundaries.md` перед встраиванием скриптов в строки host-языка.
 
 ## Optional hook enforcement
 

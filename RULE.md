@@ -31,7 +31,9 @@ Do not guess a legacy encoding and do not rewrite a file after decoding with rep
 6. For reading `RULE.md`, `SKILL.md`, Markdown, JSON, or other UTF-8 text through terminal output, use `safe-text-io/scripts/read-text.mjs <path>`; do not use PowerShell `Get-Content` plus `[Console]::OutputEncoding`.
 7. For encoding analysis, transcoding, and ASCII-safe byte replacement, use `safe-text-io` scripts; do not rely on shell defaults.
 8. Do not embed `[System.Text.UTF8Encoding]::new($false)` or similar encoding fixes inside `powershell -Command`; nested quoting can change `$false` or break the command.
-9. After the first quoting, parsing, or mojibake failure, stop trying variants and switch to the deterministic path from the skills.
+9. Do not send non-ASCII inline Node.js code or literals through PowerShell stdin; use `safe-shell-io/scripts/run-node-utf8.mjs --spec <spec.json>` or a script file plus JSON/Base64 payload.
+10. Do not send complex SSH commands containing pipes, `$`, regex, quotes, `sed`, `awk`, or `grep` as one command string; use `safe-shell-io/scripts/remote-bash.mjs`, stdin, a file, or a spec.
+11. After the first quoting, parsing, or mojibake failure, stop trying variants and switch to the deterministic path from the skills.
 
 ## External tools
 
@@ -53,13 +55,16 @@ Read `docs/field-notes.md` when an operation touches any of these known traps:
 
 - terminal or tool output shows mojibake but file bytes may still be valid;
 - SSH, rsync, SFTP, remote shell, here-doc, or long-running remote operations are involved;
+- Windows/PowerShell sends Node.js scripts or data containing non-ASCII text;
+- Windows/PowerShell sends Bash to SSH, especially from a here-string or CRLF source file;
+- SSH command strings contain pipes, `$`, regex, quotes, `sed`, `awk`, `grep`, or nginx variables under `set -u`;
 - PowerShell/SSH command strings contain `\n` newline escapes;
 - PowerShell ranges or line windows are involved;
 - CLI search patterns or user-controlled positional values may start with `-`, especially `rg` patterns;
 - a non-UTF-8 file needs an ASCII-only byte replacement;
 - floating Docker tags are being migrated or preserved.
 
-Read `docs/remote-io-recipes.md` before composing multi-layer remote commands. Use `examples/powershell-select-object.md` for PowerShell range syntax, `examples/powershell-ssh-newlines.md` for PowerShell/SSH newline escaping, `examples/ripgrep-leading-dash.md` for `rg -- "-pattern"`, and `examples/remote-script-boundaries.md` before embedding scripts inside local-language strings.
+Read `docs/remote-io-recipes.md` before composing multi-layer remote commands. Use `safe-shell-io/scripts/run-node-utf8.mjs` for Node scripts/data crossing PowerShell, `safe-shell-io/scripts/remote-bash.mjs` for Bash scripts crossing Windows to SSH, `examples/powershell-select-object.md` for PowerShell range syntax, `examples/powershell-ssh-newlines.md` for PowerShell/SSH newline escaping, `examples/ripgrep-leading-dash.md` for `rg -- "-pattern"`, and `examples/remote-script-boundaries.md` before embedding scripts inside local-language strings.
 
 ## Optional hook enforcement
 
