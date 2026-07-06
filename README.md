@@ -181,6 +181,8 @@ node skills/safe-shell-io/scripts/run-from-spec.mjs command.json
 
 The runner uses `spawn` with `shell: false` and passes every argument as a separate `argv` item.
 
+Do not read, redact, or transform config/env/secrets with inline interpreter one-liners such as `node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c`, or `sh -c`. If the command touches `.env`, TOML/JSON/YAML config, tokens, `Authorization`, `Bearer`, regex, `$`, nested quotes, or non-ASCII values, use a native tool/API, a script file, `run-from-spec.mjs`, `run-node-utf8.mjs --spec`, or `node_repl`, and print only allowlisted metadata.
+
 For Node.js work that needs non-ASCII data across a Windows/PowerShell boundary, keep code in a script file and pass data through a UTF-8 JSON spec:
 
 ```sh
@@ -241,7 +243,7 @@ The kit does not replace project-specific or domain-specific instructions. It si
 
 ## Field-tested recipes
 
-See [`docs/field-notes.md`](docs/field-notes.md), [`docs/remote-io-recipes.md`](docs/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md), and [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md) for cases such as terminal mojibake with valid UTF-8 bytes, PowerShell → Node UTF-8 literals, Windows CRLF into remote Bash, complex SSH commands, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, remote here-doc escaping, Paramiko SFTP rename behavior, long SSH jobs, secret redaction, and floating Docker tags.
+See [`docs/field-notes.md`](docs/field-notes.md), [`docs/remote-io-recipes.md`](docs/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md), and [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md) for cases such as terminal mojibake with valid UTF-8 bytes, PowerShell → Node UTF-8 literals, Windows CRLF into remote Bash, complex SSH commands, inline interpreter one-liners around config/env/secrets, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, remote here-doc escaping, Paramiko SFTP rename behavior, long SSH jobs, secret redaction, and floating Docker tags.
 
 ## Optional hook enforcement
 

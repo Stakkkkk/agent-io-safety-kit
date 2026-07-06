@@ -22,6 +22,24 @@ After the first escaping or parsing failure, switch immediately to option 3. Do 
 - Do not use `eval`, `Invoke-Expression`, or `shell: true`.
 - Do not put secrets in diagnostic output or specs that will be committed.
 
+## Inline interpreter one-liners
+
+Treat `node -e`, `node --eval`, `node -p`, `python -c`, `python3 -c`, `py -c`, `ruby -e`, `perl -e`, `powershell -Command`, `pwsh -Command`, `cmd /c`, `bash -c`, and `sh -c` as unsafe by default when they touch project files, config/env/secrets, JSON/YAML/TOML, regex, non-ASCII data, paths with spaces, or code containing `$`, quotes, backticks, braces, brackets, pipes, redirects, or command separators.
+
+Do not use inline interpreter one-liners for redaction or transformation of config output. Use one of these routes:
+
+- native MCP/API/tool access;
+- a script file created with a structured editor or patch API;
+- `scripts/run-from-spec.mjs`;
+- `scripts/run-node-utf8.mjs --spec <spec.json>`;
+- `node_repl`, when available and suitable.
+
+The only normal exception is fixed ASCII diagnostics such as `node --version`, with no project data, no regex, no secrets, and no nested quoting.
+
+## Config/env/secrets output
+
+When reading `.env`, `.toml`, `.json`, `.yaml`, `.yml`, service configs, or files likely to contain tokens/passwords, do not redact by piping through shell regex or inline interpreter code. Parse structurally where possible and print only allowlisted metadata: section names, key presence, counts, server names, URL hostnames, or auth header shape. Never print raw values.
+
 ## Remote and PowerShell edge cases
 
 Before SSH, rsync, SFTP, remote shell, here-doc, or long-running remote operations, read `../../docs/field-notes.md` and `../../docs/remote-io-recipes.md`.

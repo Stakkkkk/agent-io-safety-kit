@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 Nothing yet.
 
+## 0.1.7 - 2026-07-06
+
+- Added hard routing rules for inline interpreter one-liners around config/env/secrets.
+- Added Cursor hook detection for risky inline interpreter one-liners.
+
 ## 0.1.6 - 2026-07-02
 
 - Added `run-node-utf8.mjs` and `remote-bash.mjs` helpers for Windows/PowerShell UTF-8 and SSH boundaries.

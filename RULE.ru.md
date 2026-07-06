@@ -35,6 +35,24 @@
 10. Не отправлять сложные SSH commands с pipes, `$`, regex, кавычками, `sed`, `awk` или `grep` одной command string; использовать `safe-shell-io/scripts/remote-bash.mjs`, stdin, файл или spec.
 11. После первой ошибки quoting, парсинга или mojibake прекратить перебор вариантов и перейти к детерминированному пути из skills.
 
+## Inline interpreter one-liners
+
+Команды вроде `node -e`, `node --eval`, `node -p`, `python -c`, `python3 -c`, `py -c`, `ruby -e`, `perl -e`, `powershell -Command`, `pwsh -Command`, `cmd /c`, `bash -c` и `sh -c` по умолчанию unsafe, если они читают или преобразуют пользовательские/проектные файлы, config/env/secrets, JSON/YAML/TOML, regex, пути с пробелами, non-ASCII текст или содержат `$`, кавычки, backticks, `{}`, `[]`, `|`, `&`, `;`, `<` или `>`.
+
+В этих случаях использовать один из маршрутов:
+
+- native MCP/API/tool access;
+- отдельный script file, созданный через структурированный редактор или patch API;
+- `safe-shell-io/scripts/run-from-spec.mjs`;
+- `safe-shell-io/scripts/run-node-utf8.mjs --spec <spec.json>`;
+- `node_repl`, если он доступен и подходит.
+
+Узкое исключение — fixed ASCII diagnostics без пользовательских/проектных данных, regex, secrets и вложенных кавычек, например `node --version`.
+
+## Config/env/secrets
+
+Если команда читает `.env`, `.toml`, `.json`, `.yaml`, `.yml`, service config files или файлы, где вероятны tokens/passwords, не делать redaction inline в shell-команде. Читать через безопасный script/API, по возможности парсить структурно и печатать только allowlist: имена секций, наличие ключей, URL hostnames, counts, server names или форму auth header. Никогда не печатать raw secret values.
+
 ## Внешние инструменты
 
 - Если в проекте уже настроен специализированный линтер, formatter, schema validator или scanner для затронутого типа файла, запускать его после того, как стабилизированы shell/text I/O границы этим комплектом.
@@ -56,6 +74,7 @@
 - terminal/tool output показывает mojibake, но байты файла могут быть корректными;
 - используются SSH, rsync, SFTP, remote shell, here-doc или долгие remote-операции;
 - Windows/PowerShell передаёт Node.js scripts или данные с non-ASCII текстом;
+- inline interpreter one-liners читают config/env/secrets, structured files, regex или non-ASCII data;
 - Windows/PowerShell отправляет Bash в SSH, особенно из here-string или CRLF source file;
 - SSH command strings содержат pipes, `$`, regex, кавычки, `sed`, `awk`, `grep` или nginx variables под `set -u`;
 - PowerShell/SSH command strings содержат `\n` newline escapes;

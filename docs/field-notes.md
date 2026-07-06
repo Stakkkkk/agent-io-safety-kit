@@ -64,6 +64,12 @@ Pipes, `$`, regex, quotes, `sed`, `awk`, and `grep` inside `ssh host "..."` are 
 
 For complex remote snippets, send a script through stdin/file/spec instead of a one-line SSH command.
 
+### Inline interpreter one-liners can bypass the safe route
+
+`node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c`, `sh -c`, and similar one-liners are easy to underestimate. If they read config/env/secrets, parse structured files, perform redaction, or contain regex, `$`, nested quotes, pipes, or non-ASCII data, treat them as unsafe.
+
+Use a native tool/API, a real script file, `run-from-spec.mjs`, `run-node-utf8.mjs --spec`, or `node_repl`. For secrets, print only allowlisted metadata such as section names, URL hosts, counts, booleans, and auth presence flags; never inline-redact raw values in a shell command.
+
 ### Bash `set -u` expands `$...` inside double quotes
 
 Under `set -u`, a command such as `grep "map $http_authorization"` can try to expand an unset Bash variable. For nginx or shell-looking config text:

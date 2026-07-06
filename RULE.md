@@ -35,6 +35,24 @@ Do not guess a legacy encoding and do not rewrite a file after decoding with rep
 10. Do not send complex SSH commands containing pipes, `$`, regex, quotes, `sed`, `awk`, or `grep` as one command string; use `safe-shell-io/scripts/remote-bash.mjs`, stdin, a file, or a spec.
 11. After the first quoting, parsing, or mojibake failure, stop trying variants and switch to the deterministic path from the skills.
 
+## Inline interpreter one-liners
+
+Commands such as `node -e`, `node --eval`, `node -p`, `python -c`, `python3 -c`, `py -c`, `ruby -e`, `perl -e`, `powershell -Command`, `pwsh -Command`, `cmd /c`, `bash -c`, and `sh -c` are unsafe by default when they read or transform user/project files, config/env/secrets, JSON/YAML/TOML, regex, paths with spaces, non-ASCII text, or contain `$`, quotes, backticks, `{}`, `[]`, `|`, `&`, `;`, `<`, or `>`.
+
+In those cases, use one of:
+
+- native MCP/API/tool access;
+- a separate script file created through a structured editor or patch API;
+- `safe-shell-io/scripts/run-from-spec.mjs`;
+- `safe-shell-io/scripts/run-node-utf8.mjs --spec <spec.json>`;
+- `node_repl` when available and suitable.
+
+The narrow exception is fixed ASCII diagnostics with no user/project data, no regex, no secrets, and no nested quoting, such as `node --version`.
+
+## Config/env/secrets
+
+If a command reads `.env`, `.toml`, `.json`, `.yaml`, `.yml`, service config files, or files likely to contain tokens or passwords, do not redact inline in a shell command. Read through a safe script/API, parse structurally where practical, and print only an allowlist: section names, key presence, URL hostnames, counts, server names, or auth header shape. Never print raw secret values.
+
 ## External tools
 
 - If the project already has a dedicated linter, formatter, schema validator, or scanner for the affected file type, run it after this kit has stabilized shell/text I/O boundaries.
@@ -56,6 +74,7 @@ Read `docs/field-notes.md` when an operation touches any of these known traps:
 - terminal or tool output shows mojibake but file bytes may still be valid;
 - SSH, rsync, SFTP, remote shell, here-doc, or long-running remote operations are involved;
 - Windows/PowerShell sends Node.js scripts or data containing non-ASCII text;
+- inline interpreter one-liners read config/env/secrets, structured files, regex, or non-ASCII data;
 - Windows/PowerShell sends Bash to SSH, especially from a here-string or CRLF source file;
 - SSH command strings contain pipes, `$`, regex, quotes, `sed`, `awk`, `grep`, or nginx variables under `set -u`;
 - PowerShell/SSH command strings contain `\n` newline escapes;

@@ -514,7 +514,7 @@ async function testMetadata() {
   assert.equal(schema.properties.command.type, "string");
 
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
-  assert.equal(packageJson.version, "0.1.6");
+  assert.equal(packageJson.version, "0.1.7");
   assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
   assert.equal(packageJson.bin["safe-shell-remote-bash"], "skills/safe-shell-io/scripts/remote-bash.mjs");
@@ -531,12 +531,11 @@ async function testMetadata() {
 }
 
 async function testReleaseNotes() {
-  const notes = await run(releaseNotesScript, ["v0.1.6"]);
+  const notes = await run(releaseNotesScript, ["v0.1.7"]);
   expectSuccess(notes, "release notes extraction");
-  assert.match(notes.stdout, /run-node-utf8\.mjs/);
-  assert.match(notes.stdout, /remote-bash\.mjs/);
-  assert.match(notes.stdout, /secret redaction/);
-  assert.doesNotMatch(notes.stdout, /0\.1\.5/);
+  assert.match(notes.stdout, /inline interpreter one-liners/);
+  assert.match(notes.stdout, /Cursor hook detection/);
+  assert.doesNotMatch(notes.stdout, /0\.1\.6/);
 }
 
 async function testCursorHookExample() {
@@ -581,6 +580,38 @@ async function testCursorHookExample() {
   });
   expectSuccess(nounset, "Cursor hook Bash nounset dollar in double quotes");
   assert.equal(JSON.parse(nounset.stdout).permission, "ask");
+
+  const inlineSecretCommand = `node -e "const fs=require('fs'); const text=fs.readFileSync('config.toml','utf8'); console.log(text.replace(/Bearer .+/, 'Bearer <redacted>'))"`;
+  const inlineSecret = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: inlineSecretCommand, cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(inlineSecret, "Cursor hook inline interpreter config secrets");
+  assert.equal(JSON.parse(inlineSecret.stdout).permission, "deny");
+
+  const inlinePythonSecret = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: 'python -c "print(open(\'.env\').read())"', cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(inlinePythonSecret, "Cursor hook inline Python env secrets");
+  assert.equal(JSON.parse(inlinePythonSecret.stdout).permission, "deny");
+
+  const inlineComplexCommand = `node -e "console.log('$1'.replace(/x/, 'y'))"`;
+  const inlineComplex = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: inlineComplexCommand, cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(inlineComplex, "Cursor hook complex inline interpreter");
+  assert.equal(JSON.parse(inlineComplex.stdout).permission, "ask");
+
+  const inlinePowerShellEncoding = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: 'powershell -Command "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); Get-Content RULE.md"', cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(inlinePowerShellEncoding, "Cursor hook inline PowerShell encoding command");
+  assert.equal(JSON.parse(inlinePowerShellEncoding.stdout).permission, "ask");
+
+  const inlineBashLoginShell = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: 'bash -lc "grep -E \\"token|Authorization\\" config.yaml"', cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(inlineBashLoginShell, "Cursor hook inline Bash login shell");
+  assert.equal(JSON.parse(inlineBashLoginShell.stdout).permission, "deny");
 
   const safe = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
     stdin: `${JSON.stringify({ command: "node --version", cwd: packageRoot, sandbox: false })}\n`,

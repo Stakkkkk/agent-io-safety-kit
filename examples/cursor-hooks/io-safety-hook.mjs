@@ -70,8 +70,12 @@ function hasSetUNounsetWithDollarInDoubleQuotes(command) {
   return hasNounset && /"[^"]*\$[A-Za-z_][A-Za-z0-9_]*[^"]*"/.test(command);
 }
 
+function executableBaseName(value) {
+  return value.replaceAll("\\", "/").split("/").pop().toLowerCase();
+}
+
 function isRipgrepExecutable(value) {
-  const baseName = value.replaceAll("\\", "/").split("/").pop().toLowerCase();
+  const baseName = executableBaseName(value);
   return baseName === "rg" || baseName === "rg.exe";
 }
 
@@ -146,6 +150,57 @@ function hasRipgrepLeadingDashPatternWithoutTerminator(command) {
   return false;
 }
 
+function isInlineInterpreterOption(executable, option) {
+  const baseName = executableBaseName(executable).replace(/\.exe$/u, "");
+  const lower = option.toLowerCase();
+
+  if (baseName === "node") {
+    return lower === "-e" || lower === "--eval" || lower.startsWith("--eval=") ||
+      lower === "-p" || lower === "--print" || lower.startsWith("--print=") ||
+      lower.startsWith("-e") || lower.startsWith("-p");
+  }
+
+  if (["python", "python3", "py"].includes(baseName)) return lower === "-c" || lower.startsWith("-c");
+  if (["ruby", "perl"].includes(baseName)) return lower === "-e" || lower.startsWith("-e") || /^-[A-Za-z]*e[A-Za-z]*$/u.test(lower);
+  if (["powershell", "pwsh"].includes(baseName)) {
+    return ["-command", "/command", "-c", "/c", "-encodedcommand", "/encodedcommand", "-enc", "/enc"].includes(lower);
+  }
+  if (baseName === "cmd") return lower === "/c" || lower === "-c";
+  if (["bash", "sh"].includes(baseName)) return lower === "-c" || /^-[A-Za-z]*c[A-Za-z]*$/u.test(lower);
+
+  return false;
+}
+
+function hasInlineInterpreterOneLiner(command) {
+  const tokens = tokenizeShellLike(command);
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token.separator) continue;
+
+    for (let argIndex = index + 1; argIndex < tokens.length; argIndex += 1) {
+      const arg = tokens[argIndex];
+      if (arg.separator) break;
+      if (isInlineInterpreterOption(token.value, arg.value)) return true;
+    }
+  }
+
+  return false;
+}
+
+function hasConfigOrSecretIndicator(command) {
+  return /(?:^|[\s"'=])(?:\.env|[^\s"'=]+\.(?:env|toml|json|ya?ml))\b/i.test(command) ||
+    /\bconfig\.toml\b/i.test(command) ||
+    /\b(?:authorization|bearer|token|secret|password|credential|api[_-]?key|private[_-]?key|openai_api_key|github_token|gh_token)\b/i.test(command) ||
+    /\bsk-[A-Za-z0-9_-]{8,}\b/.test(command);
+}
+
+function hasInlineInterpreterComplexity(command) {
+  return /[$`{}\[\]|&;<>()[\]'"]/.test(command) ||
+    /\/[^/\s]+\/[a-z]*/i.test(command) ||
+    /\b(?:regex|replace|readFile|readFileSync|Get-Content|Select-String|JSON\.parse|toml|yaml)\b/i.test(command);
+}
+
 function checkBeforeShellExecution(payload) {
   const command = String(payload.command ?? "");
   if (!command) return allow();
@@ -161,6 +216,20 @@ function checkBeforeShellExecution(payload) {
     return deny(
       "Blocked PowerShell Select-Object -Index range without parentheses.",
       "Use Select-Object -Index (94..112), or prefer -Skip/-First for contiguous line windows.",
+    );
+  }
+
+  if (hasInlineInterpreterOneLiner(command) && hasConfigOrSecretIndicator(command)) {
+    return deny(
+      "Blocked inline interpreter one-liner around config/env/secrets.",
+      "Do not read or redact config/secrets with node -e, python -c, powershell -Command, cmd /c, bash -c, or similar. Use a native API, a script file, run-from-spec.mjs, run-node-utf8.mjs --spec, or node_repl, and print only allowlisted metadata.",
+    );
+  }
+
+  if (hasInlineInterpreterOneLiner(command) && hasInlineInterpreterComplexity(command)) {
+    return ask(
+      "This inline interpreter one-liner contains complex shell/code syntax.",
+      "Use a script file, run-from-spec.mjs, run-node-utf8.mjs --spec, or node_repl instead of relying on nested command-line quoting.",
     );
   }
 

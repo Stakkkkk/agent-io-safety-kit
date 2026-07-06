@@ -22,6 +22,24 @@ description: Execute external commands with exact argv semantics and without acc
 - Не использовать `eval`, `Invoke-Expression` и `shell: true`.
 - Не помещать секреты в диагностический вывод или spec, который будет сохранён в репозитории.
 
+## Inline interpreter one-liners
+
+Считать `node -e`, `node --eval`, `node -p`, `python -c`, `python3 -c`, `py -c`, `ruby -e`, `perl -e`, `powershell -Command`, `pwsh -Command`, `cmd /c`, `bash -c` и `sh -c` unsafe по умолчанию, если они затрагивают project files, config/env/secrets, JSON/YAML/TOML, regex, non-ASCII data, paths with spaces или код с `$`, кавычками, backticks, braces, brackets, pipes, redirects или command separators.
+
+Не использовать inline interpreter one-liners для redaction или transformation of config output. Использовать один из маршрутов:
+
+- native MCP/API/tool access;
+- script file, созданный структурированным редактором или patch API;
+- `scripts/run-from-spec.mjs`;
+- `scripts/run-node-utf8.mjs --spec <spec.json>`;
+- `node_repl`, если он доступен и подходит.
+
+Единственное нормальное исключение — fixed ASCII diagnostics вроде `node --version`, без project data, regex, secrets и nested quoting.
+
+## Config/env/secrets output
+
+При чтении `.env`, `.toml`, `.json`, `.yaml`, `.yml`, service configs или файлов, где вероятны tokens/passwords, не делать redaction через shell regex или inline interpreter code. По возможности парсить структурно и печатать только allowlisted metadata: имена секций, наличие ключей, counts, server names, URL hostnames или форму auth header. Никогда не печатать raw values.
+
 ## Remote и PowerShell edge cases
 
 Перед SSH, rsync, SFTP, remote shell, here-doc или долгими remote-операциями прочитайте `../../docs/ru/field-notes.md` и `../../docs/ru/remote-io-recipes.md`.

@@ -64,6 +64,12 @@ Pipes, `$`, regex, кавычки, `sed`, `awk` и `grep` внутри `ssh host
 
 Для сложных remote snippets отправляйте script через stdin/file/spec, а не one-line SSH command.
 
+### Inline interpreter one-liners могут обойти безопасный маршрут
+
+`node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c`, `sh -c` и похожие one-liners легко недооценить. Если они читают config/env/secrets, парсят structured files, делают redaction или содержат regex, `$`, nested quotes, pipes либо non-ASCII данные, считайте их unsafe.
+
+Используйте native tool/API, настоящий script file, `run-from-spec.mjs`, `run-node-utf8.mjs --spec` или `node_repl`. Для secrets печатайте только allowlisted metadata: имена секций, URL hosts, counts, booleans и признаки наличия auth; не делайте inline-redaction raw values в shell-команде.
+
 ### Bash `set -u` раскрывает `$...` внутри double quotes
 
 Под `set -u` команда вроде `grep "map $http_authorization"` может попытаться раскрыть unset Bash variable. Для nginx или shell-looking config text:

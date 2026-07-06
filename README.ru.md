@@ -179,6 +179,8 @@ node skills/safe-shell-io/scripts/run-from-spec.mjs command.json
 
 Runner использует `spawn` с `shell: false` и передаёт каждый аргумент отдельно.
 
+Не читайте, не редактируйте и не преобразуйте config/env/secrets через inline interpreter one-liners вроде `node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c` или `sh -c`. Если команда трогает `.env`, TOML/JSON/YAML config, tokens, `Authorization`, `Bearer`, regex, `$`, вложенные кавычки или non-ASCII значения, используйте native tool/API, script file, `run-from-spec.mjs`, `run-node-utf8.mjs --spec` или `node_repl`, а в вывод печатайте только allowlisted metadata.
+
 Для Node.js задач, где non-ASCII данные проходят через Windows/PowerShell boundary, держите код в script file и передавайте данные через UTF-8 JSON spec:
 
 ```sh
@@ -239,7 +241,7 @@ node skills/safe-text-io/scripts/replace-ascii-bytes.mjs --input legacy.sh --in-
 
 ## Рецепты из практики
 
-См. [`docs/ru/field-notes.md`](docs/ru/field-notes.md), [`docs/ru/remote-io-recipes.md`](docs/ru/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md) и [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md): там разобраны mojibake при корректных UTF-8 байтах, PowerShell → Node UTF-8 literals, Windows CRLF в remote Bash, сложные SSH commands, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, escape-слои remote here-doc, Paramiko SFTP rename, долгие SSH-задачи, secret redaction и риск плавающих Docker tags.
+См. [`docs/ru/field-notes.md`](docs/ru/field-notes.md), [`docs/ru/remote-io-recipes.md`](docs/ru/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md) и [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md): там разобраны mojibake при корректных UTF-8 байтах, PowerShell → Node UTF-8 literals, Windows CRLF в remote Bash, сложные SSH commands, inline interpreter one-liners вокруг config/env/secrets, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, escape-слои remote here-doc, Paramiko SFTP rename, долгие SSH-задачи, secret redaction и риск плавающих Docker tags.
 
 ## Optional hook enforcement
 

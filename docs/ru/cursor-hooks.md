@@ -37,10 +37,12 @@ cp .agent-io-safety/examples/cursor-hooks/hooks.json .cursor/hooks.json
 node .agent-io-safety/examples/cursor-hooks/io-safety-hook.mjs --event beforeShellExecution
 ```
 
-Сейчас он ловит пять практических ловушек:
+Сейчас он ловит семь практических ловушек:
 
 - `rsync -e "ssh -n ..."` — deny, потому что rsync использует SSH stdin/stdout как protocol channel;
 - `Select-Object -Index 94..112` — deny; используйте `-Index (94..112)` или `-Skip/-First`;
+- inline interpreter one-liners вокруг config/env/secrets — deny; используйте native tool/API, script file, `run-from-spec.mjs`, `run-node-utf8.mjs --spec` или `node_repl`, а в вывод печатайте только allowlisted metadata;
+- сложные inline interpreter one-liners вроде `node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c` или `sh -c` с `$`, regex, pipes, nested quotes или redaction logic — ask for review и route к script/spec path;
 - SSH-команды с literal `\n` escapes — ask for review, потому что PowerShell/SSH quoting может дать remote output вида `n...n`;
 - `rg "-pattern"` до `--` — ask for review, потому что ripgrep воспринимает значения с начальным `-` как options, пока option parsing не остановлен;
 - Bash `set -u` / `set -o nounset` с `$...` внутри double quotes — ask for review, потому что config text вроде nginx variables может раскрыться как unset shell variable.
