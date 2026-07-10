@@ -82,6 +82,14 @@ Under `set -u`, a command such as `grep "map $http_authorization"` can try to ex
 
 Cyrillic filenames shown as `????` in terminal output do not prove the filesystem bytes or file contents are damaged. Verify through filesystem APIs, `inspect-text.mjs`, or `read-text.mjs` before changing files.
 
+For path listings, use the safe path lister instead of parsing potentially mojibake CLI output:
+
+```sh
+node skills/safe-text-io/scripts/list-paths.mjs --recursive --json path/to/tree
+```
+
+It reads names through Node.js filesystem APIs, emits UTF-8, does not read file contents, and does not follow directory symlinks/junctions recursively.
+
 ### Smoke tests must redact secrets
 
 Smoke tests that read `Authorization` or `Bearer` values must print only status, counts, server names, and non-secret metadata. Standard log redaction:

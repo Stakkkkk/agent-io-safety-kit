@@ -82,6 +82,14 @@ Pipes, `$`, regex, кавычки, `sed`, `awk` и `grep` внутри `ssh host
 
 Кириллические имена файлов, показанные как `????` в terminal output, не доказывают повреждение filesystem bytes или содержимого файлов. Проверяйте через filesystem APIs, `inspect-text.mjs` или `read-text.mjs` до любых изменений.
 
+Для path listings используйте safe path lister вместо парсинга потенциально mojibake CLI output:
+
+```sh
+node skills/safe-text-io/scripts/list-paths.mjs --recursive --json path/to/tree
+```
+
+Он читает имена через Node.js filesystem APIs, выводит UTF-8, не читает содержимое файлов и не следует directory symlinks/junctions рекурсивно.
+
 ### Smoke tests должны редактировать secrets
 
 Smoke tests, которые читают `Authorization` или `Bearer`, должны печатать только status, counts, server names и несекретную metadata. Стандартная редекция логов:

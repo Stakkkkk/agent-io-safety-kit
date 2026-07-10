@@ -64,6 +64,10 @@ node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --lang ru
 
 The destination layout is the same for both languages: the installed rule is still `.agent-io-safety/RULE.md`, and referenced skills keep their canonical paths. The manifest records the selected language.
 
+## Installed helpers
+
+The managed copy includes safe text helpers such as `skills/safe-text-io/scripts/read-text.mjs`, `skills/safe-text-io/scripts/list-paths.mjs`, and `skills/safe-text-io/scripts/inspect-text.mjs`. Use `list-paths.mjs` when terminal output corrupts non-ASCII file names in listings.
+
 ## Check an installed copy
 
 ```text

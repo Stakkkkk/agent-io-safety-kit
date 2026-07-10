@@ -20,6 +20,7 @@ description: Inspect, read, create, edit, validate, and transcode text with expl
 
 - Для обычной правки использовать структурированный редактор или patch API.
 - Для чтения Markdown, JSON, rules, skills или другого UTF-8 текста через terminal/tool boundary запускать `scripts/read-text.mjs`.
+- Для листинга путей, когда terminal output может исказить non-ASCII имена, запускать `scripts/list-paths.mjs`.
 - Для диагностики запустить `scripts/inspect-text.mjs`.
 - Для явного преобразования использовать `scripts/transcode-text.mjs`.
 - Для ASCII-only правок в non-UTF-8 или unknown-encoding файлах использовать `scripts/replace-ascii-bytes.mjs`.
@@ -38,6 +39,18 @@ node <skill-dir>/scripts/read-text.mjs <path> [<path> ...]
 Он читает bytes напрямую, принимает UTF-8 с BOM и без BOM, отклоняет UTF-16 BOM и невалидный UTF-8, убирает UTF-8 BOM только для вывода и пишет UTF-8 bytes в stdout.
 
 Используйте его для `RULE.md`, `SKILL.md`, Markdown, JSON и других instruction files, когда границей является terminal output. Не чините mojibake через `Get-Content`, `[Console]::OutputEncoding` или inline `powershell -Command` encoding snippets вроде `[System.Text.UTF8Encoding]::new($false)`.
+
+## Безопасный листинг путей
+
+Когда агенту нужен path listing через stdout, особенно на Windows или PowerShell, используйте lister на filesystem API:
+
+```text
+node <skill-dir>/scripts/list-paths.mjs <path> [<path> ...]
+node <skill-dir>/scripts/list-paths.mjs --recursive --files <path>
+node <skill-dir>/scripts/list-paths.mjs --json --recursive <path>
+```
+
+Используйте его, если `rg --files`, `Get-ChildItem`, `dir` или другой CLI listing показывает mojibake или `????` для non-ASCII имён. Не делайте вывод о повреждении filesystem по terminal display и не перебирайте code-page fixes. Lister читает имена через Node.js filesystem APIs, пишет UTF-8 в stdout, не читает содержимое файлов и не следует directory symlinks/junctions рекурсивно.
 
 ## Проверить файлы
 

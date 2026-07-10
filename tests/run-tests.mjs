@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { appendFile, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { appendFile, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import os from "node:os";
@@ -15,6 +15,7 @@ const releaseNotesScript = path.join(packageRoot, "scripts", "release-notes.mjs"
 const remoteBashScript = path.join(packageRoot, "skills", "safe-shell-io", "scripts", "remote-bash.mjs");
 const runnerScript = path.join(packageRoot, "skills", "safe-shell-io", "scripts", "run-from-spec.mjs");
 const runNodeUtf8Script = path.join(packageRoot, "skills", "safe-shell-io", "scripts", "run-node-utf8.mjs");
+const listPathsScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "list-paths.mjs");
 const readTextScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "read-text.mjs");
 const inspectScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "inspect-text.mjs");
 const replaceAsciiScript = path.join(packageRoot, "skills", "safe-text-io", "scripts", "replace-ascii-bytes.mjs");
@@ -103,6 +104,11 @@ async function testDeployment(tempRoot) {
     "safe text reader was not deployed",
   );
   assert.match(
+    await readFile(path.join(target, ".agent-io-safety", "skills", "safe-text-io", "scripts", "list-paths.mjs"), "utf8"),
+    /list-paths/,
+    "safe path lister was not deployed",
+  );
+  assert.match(
     await readFile(path.join(target, ".agent-io-safety", "skills", "safe-shell-io", "scripts", "run-node-utf8.mjs"), "utf8"),
     /run-node-utf8/,
     "safe Node UTF-8 runner was not deployed",
@@ -133,6 +139,10 @@ async function testDeployment(tempRoot) {
   expectSuccess(second, "idempotent deployment");
   assert.match(second.stdout, /UP-TO-DATE/);
   assert.equal(digest(await readFile(entryPath)), beforeSecond, "idempotent deployment changed entry file");
+  const secondText = await readFile(entryPath, "utf8");
+  assert.equal((secondText.match(/agent-io-safety:begin/g) ?? []).length, 1, "idempotent deployment duplicated begin marker");
+  assert.equal((secondText.match(/agent-io-safety:end/g) ?? []).length, 1, "idempotent deployment duplicated end marker");
+  assert.doesNotMatch(secondText, /list-paths\.mjs[\s\S]*--recursive/, "entry file embedded list-paths details");
 
   const check = await run(deployScript, ["--target", target, "--entry", "AGENTS.md", "--check"]);
   expectSuccess(check, "deployment check");
@@ -495,6 +505,101 @@ async function testTextTools(tempRoot) {
   );
 }
 
+async function testPathLister(tempRoot) {
+  const pathsRoot = path.join(tempRoot, "paths");
+  const nestedDir = path.join(pathsRoot, "Каталог с пробелом");
+  await mkdir(nestedDir, { recursive: true });
+
+  const names = [
+    "Обычный файл.txt",
+    "кавычка-'-.txt",
+    "скобки-[01].json",
+    "решетка-#.md",
+    "日本語.txt",
+    "emoji-😀.txt",
+  ];
+  for (const name of names) await writeFile(path.join(pathsRoot, name), `${name}\n`, "utf8");
+  await writeFile(path.join(nestedDir, "вложенный файл.md"), "nested\n", "utf8");
+
+  let symlinkCreated = false;
+  try {
+    await symlink(pathsRoot, path.join(nestedDir, "loop-link"), "junction");
+    symlinkCreated = true;
+  } catch {
+    try {
+      await symlink(pathsRoot, path.join(nestedDir, "loop-link"), "dir");
+      symlinkCreated = true;
+    } catch {
+      symlinkCreated = false;
+    }
+  }
+
+  const topLevel = await run(listPathsScript, [pathsRoot]);
+  expectSuccess(topLevel, "safe path lister top-level text");
+  const topLevelPaths = topLevel.stdout.trim().split(/\r?\n/u).map((value) => path.basename(value)).sort();
+  assert.deepEqual(topLevelPaths, [...names, "Каталог с пробелом"].sort());
+  assert.doesNotMatch(topLevel.stdout, /\uFFFD|\?{2,}/u, "path lister emitted replacement-looking names");
+
+  const recursive = await run(listPathsScript, ["--recursive", pathsRoot]);
+  expectSuccess(recursive, "safe path lister recursive text");
+  const recursiveLines = recursive.stdout.trim().split(/\r?\n/u);
+  assert.deepEqual(recursiveLines, [...recursiveLines].sort(), "recursive listing is not stable sorted");
+  assert.ok(recursiveLines.some((line) => line.endsWith(path.join("Каталог с пробелом", "вложенный файл.md"))));
+  if (symlinkCreated) {
+    assert.ok(recursiveLines.some((line) => line.endsWith(path.join("Каталог с пробелом", "loop-link"))));
+    assert.equal(recursiveLines.filter((line) => line.includes("loop-link")).length, 1, "symlink/junction was followed recursively");
+  }
+
+  const json = await run(listPathsScript, ["--json", "--recursive", pathsRoot]);
+  expectSuccess(json, "safe path lister JSON");
+  const entries = JSON.parse(json.stdout);
+  assert.ok(entries.some((entry) => entry.path.endsWith("日本語.txt") && entry.type === "file"));
+  assert.ok(entries.some((entry) => entry.path.endsWith("emoji-😀.txt") && entry.type === "file"));
+  if (symlinkCreated) assert.ok(entries.some((entry) => entry.path.endsWith("loop-link") && entry.type === "symlink"));
+
+  const filesOnly = await run(listPathsScript, ["--recursive", "--files", pathsRoot]);
+  expectSuccess(filesOnly, "safe path lister files filter");
+  assert.ok(filesOnly.stdout.includes("Обычный файл.txt"));
+  assert.ok(filesOnly.stdout.includes("вложенный файл.md"));
+  if (symlinkCreated) assert.ok(!filesOnly.stdout.includes("loop-link"));
+
+  const dirsOnly = await run(listPathsScript, ["--recursive", "--dirs", pathsRoot]);
+  expectSuccess(dirsOnly, "safe path lister dirs filter");
+  assert.ok(dirsOnly.stdout.includes("Каталог с пробелом"));
+  assert.ok(!dirsOnly.stdout.includes("Обычный файл.txt"));
+
+  const quotedPath = path.join(pathsRoot, "кавычка-'-.txt");
+  const quoted = await run(listPathsScript, [quotedPath]);
+  expectSuccess(quoted, "safe path lister quoted argv path");
+  assert.equal(quoted.stdout, `${quotedPath}\n`);
+
+  const missing = await run(listPathsScript, [path.join(pathsRoot, "missing.txt")]);
+  expectFailure(missing, "safe path lister missing path");
+  assert.match(missing.stderr, /list-paths:/);
+}
+
+async function testSnippetCompactness() {
+  const snippetRoots = [path.join(packageRoot, "snippets"), path.join(packageRoot, "snippets", "ru")];
+  const fragmentPaths = [];
+
+  for (const snippetRoot of snippetRoots) {
+    const entries = await readdir(snippetRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith(".fragment")) fragmentPaths.push(path.join(snippetRoot, entry.name));
+    }
+  }
+
+  assert.ok(fragmentPaths.length >= 10, "expected managed entry fragments");
+  for (const fragmentPath of fragmentPaths) {
+    const bytes = await readFile(fragmentPath);
+    assert.ok(bytes.length <= 1024, `${path.relative(packageRoot, fragmentPath)} exceeds 1024 UTF-8 bytes`);
+    const text = bytes.toString("utf8");
+    assert.equal((text.match(/agent-io-safety:begin/g) ?? []).length, 1, "fragment begin marker count changed");
+    assert.equal((text.match(/agent-io-safety:end/g) ?? []).length, 1, "fragment end marker count changed");
+    assert.doesNotMatch(text, /list-paths\.mjs[\s\S]*--recursive/, "fragment embeds list-paths details");
+  }
+}
+
 async function testCliHelp() {
   expectSuccess(await run(deployScript, ["--help"]), "deploy help");
   expectSuccess(await run(doctorScript, ["--help"]), "doctor help");
@@ -502,6 +607,7 @@ async function testCliHelp() {
   expectSuccess(await run(remoteBashScript, ["--help"]), "remote bash help");
   expectSuccess(await run(runnerScript, ["--help"]), "runner help");
   expectSuccess(await run(runNodeUtf8Script, ["--help"]), "run node UTF-8 help");
+  expectSuccess(await run(listPathsScript, ["--help"]), "list paths help");
   expectSuccess(await run(readTextScript, ["--help"]), "read text help");
   expectSuccess(await run(inspectScript, ["--help"]), "inspect help");
   expectSuccess(await run(replaceAsciiScript, ["--help"]), "replace ASCII bytes help");
@@ -514,11 +620,12 @@ async function testMetadata() {
   assert.equal(schema.properties.command.type, "string");
 
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
-  assert.equal(packageJson.version, "0.1.7");
+  assert.equal(packageJson.version, "0.1.8");
   assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
   assert.equal(packageJson.bin["safe-shell-remote-bash"], "skills/safe-shell-io/scripts/remote-bash.mjs");
   assert.equal(packageJson.bin["safe-shell-run-node-utf8"], "skills/safe-shell-io/scripts/run-node-utf8.mjs");
+  assert.equal(packageJson.bin["safe-text-list-paths"], "skills/safe-text-io/scripts/list-paths.mjs");
   assert.equal(packageJson.bin["safe-text-read"], "skills/safe-text-io/scripts/read-text.mjs");
   assert.equal(packageJson.bin["safe-text-replace-ascii-bytes"], "skills/safe-text-io/scripts/replace-ascii-bytes.mjs");
   assert.ok(packageJson.files.includes("schemas/"));
@@ -531,11 +638,11 @@ async function testMetadata() {
 }
 
 async function testReleaseNotes() {
-  const notes = await run(releaseNotesScript, ["v0.1.7"]);
+  const notes = await run(releaseNotesScript, ["v0.1.8"]);
   expectSuccess(notes, "release notes extraction");
-  assert.match(notes.stdout, /inline interpreter one-liners/);
-  assert.match(notes.stdout, /Cursor hook detection/);
-  assert.doesNotMatch(notes.stdout, /0\.1\.6/);
+  assert.match(notes.stdout, /list-paths\.mjs/);
+  assert.match(notes.stdout, /rg --files/);
+  assert.doesNotMatch(notes.stdout, /0\.1\.7/);
 }
 
 async function testCursorHookExample() {
@@ -641,6 +748,8 @@ try {
   await testRunner(tempRoot);
   await testShellHelpers(tempRoot);
   await testTextTools(tempRoot);
+  await testPathLister(tempRoot);
+  await testSnippetCompactness();
   process.stdout.write("ALL TESTS PASSED\n");
 } finally {
   await safeCleanup(tempRoot);

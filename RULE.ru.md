@@ -29,11 +29,12 @@
 4. Не интерполировать пользовательские значения в командную строку, скрипт, regex или JSON.
 5. Для сложного argv создать UTF-8 JSON-spec и запустить `safe-shell-io/scripts/run-from-spec.mjs`.
 6. Для чтения `RULE.md`, `SKILL.md`, Markdown, JSON или другого UTF-8 текста через terminal output использовать `safe-text-io/scripts/read-text.mjs <path>`; не использовать PowerShell `Get-Content` плюс `[Console]::OutputEncoding`.
-7. Для анализа кодировки, преобразования и ASCII-safe byte replacement использовать скрипты `safe-text-io`; не полагаться на дефолты shell.
-8. Не встраивать `[System.Text.UTF8Encoding]::new($false)` и похожие encoding fixes внутрь `powershell -Command`; вложенный quoting может изменить `$false` или сломать команду.
-9. Не передавать non-ASCII inline Node.js code или literals через PowerShell stdin; использовать `safe-shell-io/scripts/run-node-utf8.mjs --spec <spec.json>` или script file плюс JSON/Base64 payload.
-10. Не отправлять сложные SSH commands с pipes, `$`, regex, кавычками, `sed`, `awk` или `grep` одной command string; использовать `safe-shell-io/scripts/remote-bash.mjs`, stdin, файл или spec.
-11. После первой ошибки quoting, парсинга или mojibake прекратить перебор вариантов и перейти к детерминированному пути из skills.
+7. Для листинга путей, когда terminal output может исказить non-ASCII имена, использовать `safe-text-io/scripts/list-paths.mjs <path>`; не считать mojibake из `rg --files`, `Get-ChildItem` или `dir` доказательством повреждения имён.
+8. Для анализа кодировки, преобразования и ASCII-safe byte replacement использовать скрипты `safe-text-io`; не полагаться на дефолты shell.
+9. Не встраивать `[System.Text.UTF8Encoding]::new($false)` и похожие encoding fixes внутрь `powershell -Command`; вложенный quoting может изменить `$false` или сломать команду.
+10. Не передавать non-ASCII inline Node.js code или literals через PowerShell stdin; использовать `safe-shell-io/scripts/run-node-utf8.mjs --spec <spec.json>` или script file плюс JSON/Base64 payload.
+11. Не отправлять сложные SSH commands с pipes, `$`, regex, кавычками, `sed`, `awk` или `grep` одной command string; использовать `safe-shell-io/scripts/remote-bash.mjs`, stdin, файл или spec.
+12. После первой ошибки quoting, парсинга или mojibake прекратить перебор вариантов и перейти к детерминированному пути из skills.
 
 ## Inline interpreter one-liners
 
@@ -72,6 +73,7 @@
 Читайте `docs/ru/field-notes.md`, если операция затрагивает одну из известных ловушек:
 
 - terminal/tool output показывает mojibake, но байты файла могут быть корректными;
+- terminal/tool output искажает non-ASCII имена путей из `rg --files`, `Get-ChildItem`, `dir` или другого CLI-листинга;
 - используются SSH, rsync, SFTP, remote shell, here-doc или долгие remote-операции;
 - Windows/PowerShell передаёт Node.js scripts или данные с non-ASCII текстом;
 - inline interpreter one-liners читают config/env/secrets, structured files, regex или non-ASCII data;
@@ -94,6 +96,7 @@
 - Всегда учитывать различие Windows PowerShell 5.1 и PowerShell 7+.
 - В Windows PowerShell 5.1 не полагаться на `Get-Content`, `Set-Content`, `Out-File`, `$OutputEncoding`, активную code page и перенаправление без явной проверки формата.
 - Если terminal output PowerShell показывает mojibake при чтении инструкций, не встраивать fixes через `[Console]::OutputEncoding` или `[System.Text.UTF8Encoding]::new($false)`; читать файл через `node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs <path>`.
+- Если terminal output PowerShell искажает non-ASCII имена файлов или показывает `????` в листинге из `rg --files`, `Get-ChildItem`, `dir` или другой CLI-команды, не делать вывод о повреждении файлов и не перебирать code-page fixes. Повторить листинг через `node .agent-io-safety/skills/safe-text-io/scripts/list-paths.mjs <path>`.
 - Для совместимых с PowerShell 5.1 `.ps1` предпочитать ASCII-only. Если не-ASCII необходим, явно выбрать поддерживаемую кодировку с BOM и зафиксировать исключение в политике проекта.
 - Использовать `-LiteralPath` для путей и массивы/splatting для аргументов.
 

@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 Nothing yet.
 
+## 0.1.8 - 2026-07-10
+
+- Added `safe-text-io/scripts/list-paths.mjs` for UTF-8 path listings through terminal/tool boundaries.
+- Documented the Windows/PowerShell `rg --files` mojibake path-listing route.
+
 ## 0.1.7 - 2026-07-06
 
 - Added hard routing rules for inline interpreter one-liners around config/env/secrets.

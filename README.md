@@ -205,6 +205,14 @@ node skills/safe-text-io/scripts/read-text.mjs RULE.md skills/safe-text-io/SKILL
 
 The reader accepts UTF-8 with or without BOM, rejects invalid UTF-8 and UTF-16 BOM, and writes UTF-8 bytes to stdout. Windows agents must not fix terminal mojibake with inline PowerShell encoding commands such as `[Console]::OutputEncoding` or `[System.Text.UTF8Encoding]::new($false)`; use `read-text.mjs`.
 
+Safely list paths through a terminal/tool boundary when non-ASCII names may render as mojibake:
+
+```sh
+node skills/safe-text-io/scripts/list-paths.mjs --recursive --json docs
+```
+
+The lister uses Node.js filesystem APIs, writes UTF-8 to stdout, does not read file contents, and does not follow directory symlinks/junctions recursively. Use it instead of trusting corrupted output from `rg --files`, `Get-ChildItem`, or `dir`.
+
 ```sh
 node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.md
 ```
@@ -263,6 +271,7 @@ Useful local commands:
 npx agent-io-safety-kit --target /path/to/project --entry AGENTS.md --dry-run
 npx safe-shell-run-node-utf8 --spec node-task.json
 npx safe-shell-remote-bash host script.sh
+npx safe-text-list-paths --recursive --json docs
 npx safe-text-read README.md
 npx safe-text-inspect --fail-on-bom --eol lf README.md
 ```

@@ -29,11 +29,12 @@ Do not guess a legacy encoding and do not rewrite a file after decoding with rep
 4. Do not interpolate user values into a command line, script, regex, or JSON.
 5. For complex argv, create a UTF-8 JSON spec and run `safe-shell-io/scripts/run-from-spec.mjs`.
 6. For reading `RULE.md`, `SKILL.md`, Markdown, JSON, or other UTF-8 text through terminal output, use `safe-text-io/scripts/read-text.mjs <path>`; do not use PowerShell `Get-Content` plus `[Console]::OutputEncoding`.
-7. For encoding analysis, transcoding, and ASCII-safe byte replacement, use `safe-text-io` scripts; do not rely on shell defaults.
-8. Do not embed `[System.Text.UTF8Encoding]::new($false)` or similar encoding fixes inside `powershell -Command`; nested quoting can change `$false` or break the command.
-9. Do not send non-ASCII inline Node.js code or literals through PowerShell stdin; use `safe-shell-io/scripts/run-node-utf8.mjs --spec <spec.json>` or a script file plus JSON/Base64 payload.
-10. Do not send complex SSH commands containing pipes, `$`, regex, quotes, `sed`, `awk`, or `grep` as one command string; use `safe-shell-io/scripts/remote-bash.mjs`, stdin, a file, or a spec.
-11. After the first quoting, parsing, or mojibake failure, stop trying variants and switch to the deterministic path from the skills.
+7. For listing paths when terminal output may corrupt non-ASCII names, use `safe-text-io/scripts/list-paths.mjs <path>`; do not trust mojibake from `rg --files`, `Get-ChildItem`, or `dir` as evidence of damaged filenames.
+8. For encoding analysis, transcoding, and ASCII-safe byte replacement, use `safe-text-io` scripts; do not rely on shell defaults.
+9. Do not embed `[System.Text.UTF8Encoding]::new($false)` or similar encoding fixes inside `powershell -Command`; nested quoting can change `$false` or break the command.
+10. Do not send non-ASCII inline Node.js code or literals through PowerShell stdin; use `safe-shell-io/scripts/run-node-utf8.mjs --spec <spec.json>` or a script file plus JSON/Base64 payload.
+11. Do not send complex SSH commands containing pipes, `$`, regex, quotes, `sed`, `awk`, or `grep` as one command string; use `safe-shell-io/scripts/remote-bash.mjs`, stdin, a file, or a spec.
+12. After the first quoting, parsing, or mojibake failure, stop trying variants and switch to the deterministic path from the skills.
 
 ## Inline interpreter one-liners
 
@@ -72,6 +73,7 @@ If a command reads `.env`, `.toml`, `.json`, `.yaml`, `.yml`, service config fil
 Read `docs/field-notes.md` when an operation touches any of these known traps:
 
 - terminal or tool output shows mojibake but file bytes may still be valid;
+- terminal or tool output corrupts non-ASCII path names from `rg --files`, `Get-ChildItem`, `dir`, or another CLI listing;
 - SSH, rsync, SFTP, remote shell, here-doc, or long-running remote operations are involved;
 - Windows/PowerShell sends Node.js scripts or data containing non-ASCII text;
 - inline interpreter one-liners read config/env/secrets, structured files, regex, or non-ASCII data;
@@ -94,6 +96,7 @@ If the host agent supports lifecycle hooks, use them as a mechanical enforcement
 - Always account for differences between Windows PowerShell 5.1 and PowerShell 7+.
 - In Windows PowerShell 5.1, do not rely on `Get-Content`, `Set-Content`, `Out-File`, `$OutputEncoding`, the active code page, or redirection without verifying byte semantics.
 - If PowerShell terminal output shows mojibake while reading instructions, do not inline `[Console]::OutputEncoding` or `[System.Text.UTF8Encoding]::new($false)` fixes; read the file with `node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs <path>`.
+- If PowerShell terminal output corrupts non-ASCII file names or shows `????` in listings from `rg --files`, `Get-ChildItem`, `dir`, or another CLI, do not infer that files are damaged and do not try code-page fixes. Repeat the listing with `node .agent-io-safety/skills/safe-text-io/scripts/list-paths.mjs <path>`.
 - For PowerShell 5.1-compatible `.ps1` files, prefer ASCII-only. If non-ASCII is required, explicitly choose a supported BOM-based encoding and document the exception in project policy.
 - Use `-LiteralPath` for paths and arrays/splatting for arguments.
 
