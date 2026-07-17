@@ -392,7 +392,7 @@ export async function testShellHelpers(tempRoot) {
   const remoteFailure = await run(remoteBashScript, ["--ssh", process.execPath, "--ssh-arg", fakeFailingSsh, "example.org", remoteScript]);
   expectFailure(remoteFailure, "remote-bash SSH failure diagnostic");
   assert.match(remoteFailure.stderr, /Permission denied/);
-  assert.match(remoteFailure.stderr, /used .+node\.exe/);
+  assert.ok(remoteFailure.stderr.includes(`used ${process.execPath}`));
   assert.match(remoteFailure.stderr, /--diagnose-ssh/);
 
   const utf16Script = path.join(helperRoot, "utf16.sh");
