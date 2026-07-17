@@ -2,284 +2,158 @@
 
 Languages: [English](README.md) | [Russian](README.ru.md)
 
-Stop AI agents from losing data to shell quoting, encodings, BOMs, and line endings.
+A dependency-free safety layer for coding agents that cross shell, text, PowerShell, SSH, encoding, and terminal-output boundaries.
 
-Agent I/O Safety Kit is a small, dependency-free bundle of rules, skills, and Node.js scripts for safer agent command execution and text file handling. It is meant to be copied into any repository that uses coding agents, regardless of the agent platform.
+The kit combines compact agent rules, deterministic Node.js helpers, optional lifecycle hooks, deployment integrity checks, and field-tested recipes. It does not replace project/domain instructions; it controls the lower I/O layer used to carry them out.
 
-Use it when an agent frequently:
+## What it prevents
 
-- runs commands with user-controlled text, spaces in paths, quotes, shell metacharacters, JSON/YAML/SQL/regex, multiline values, or non-ASCII characters;
-- reads, creates, edits, or transcodes text files;
-- works on Windows or PowerShell and risks mojibake;
-- wastes time trying different quoting combinations after the first failure.
+- repeated shell-quoting guesses and accidental command re-parsing;
+- mojibake being mistaken for damaged files or paths;
+- silent UTF-8 replacement decoding, unwanted BOM/EOL changes, and unsafe legacy-file rewrites;
+- inline interpreter one-liners around config, environment, regex, non-ASCII data, or secrets;
+- common PowerShell, SSH, rsync, remote Bash, and persistent REPL mistakes.
 
-## What is included
+## Requirements and distribution
 
-- `RULE.md` — the central policy for safe shell and text I/O.
-- `skills/safe-shell-io` — instructions and helpers for exact `argv`, UTF-8 Node runs, and remote Bash execution.
-- `skills/safe-text-io` — instructions and utilities for safe text reads, inspection, transcoding, and ASCII-safe byte replacement.
-- `schemas/command-spec.schema.json` — JSON Schema for command specs.
-- `scripts/deploy.mjs` — an idempotent installer for target projects.
-- `scripts/doctor.mjs` — a diagnostic command for installed copies.
-- `snippets/` — managed instruction fragments for common agent entry files.
-- `examples/` — small copy-pasteable examples.
-- `docs/external-tools.md` — optional integrations with mature linters, scanners, and validators.
-- `docs/language-policy.md` — why the core stays dependency-free Node.js.
-- `docs/localization.md` — how English canonical files and Russian localization are maintained.
-- `docs/project-skills-layering.md` — how to use the kit next to existing project/domain skills.
-- `docs/field-notes.md` — real shell/text/remote I/O traps observed in agent work.
-- `docs/remote-io-recipes.md` — safer patterns for SSH, rsync, here-docs, SFTP, and long remote jobs.
-- `docs/cursor-hooks.md` — optional Cursor Hooks enforcement layer.
-- `docs/codex-hooks.md` — optional Codex Hooks enforcement layer.
-- `tests/run-tests.mjs` — a self-contained test suite with no npm dependencies.
+- Node.js 18 or newer;
+- no runtime npm dependencies.
 
-Design overview: [`00-MECHANISM.md`](00-MECHANISM.md). Deployment guide: [`01-DEPLOYMENT.md`](01-DEPLOYMENT.md).
+The package is distributed by tagged GitHub releases. Each release contains source, a `.tgz` npm package, and its SHA-256 file. The npm name is reserved in metadata but is not currently published to the public npm registry, so bare `npx agent-io-safety-kit` is not a supported installation route yet.
 
-## Language policy
+## Install from a tagged GitHub release
 
-English is the canonical language for project files, GitHub/npm metadata, rules, skills, snippets, docs, and examples. Russian is maintained as a first-class localization:
-
-- `README.ru.md`
-- `00-MECHANISM.ru.md`
-- `01-DEPLOYMENT.ru.md`
-- `RULE.ru.md`
-- `skills/**/SKILL.ru.md`
-- `skills/**/references/*.ru.md`
-- `docs/ru/`
-
-The installer can deploy either language while preserving the same target paths:
+After `v0.2.0` is published:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang en
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang ru
+npx --yes --package github:Stakkkkk/agent-io-safety-kit#v0.2.0 agent-io-safety-kit --target /path/to/project
 ```
 
-## Requirements
-
-- Node.js 18 or newer.
-- A target project where `.agent-io-safety/` should be installed.
-
-No external npm dependencies are required.
-
-## Quick start
-
-Preview an installation:
+To avoid network resolution after downloading the release asset:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --dry-run
+npx --yes --package ./agent-io-safety-kit-0.2.0.tgz agent-io-safety-kit --target /path/to/project
 ```
 
-Install or update the managed copy:
+From a cloned repository:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md
+node scripts/deploy.mjs --target /path/to/project
 ```
 
-Install Russian localized agent instructions:
+Preview first with `--dry-run`. The default entry file is `AGENTS.md`; override it with `--entry` for another agent platform.
+
+## Deployment choices
+
+The default `core` profile installs the rule, selected-language docs, skills, and helpers:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang ru
+node scripts/deploy.mjs --target /path/to/project --profile core --lang en
+node scripts/deploy.mjs --target /path/to/project --profile core --lang ru
 ```
 
-Normalize the entry file explicitly during deployment:
+Use `full` when the target also needs all examples, both documentation trees, and ready hook adapters:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --fix-entry-text
+node scripts/deploy.mjs --target /path/to/project --profile full
 ```
 
-This removes UTF-8 BOM from the entry file and normalizes its line endings to LF. It is opt-in because the default installer preserves existing entry-file bytes where possible.
-
-Check an installed copy:
+Other useful modes:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --check
-node scripts/doctor.mjs --target /path/to/project --entry AGENTS.md
-node scripts/doctor.mjs --target /path/to/project --entry AGENTS.md --external
+node scripts/deploy.mjs --target /path/to/project --dry-run
+node scripts/deploy.mjs --target /path/to/project --check
+node scripts/deploy.mjs --target /path/to/project --fix-entry-text
+node scripts/deploy.mjs --target /path/to/project --uninstall
 ```
 
-By default, the installer creates or updates a managed block in `AGENTS.md` and copies the kit to `.agent-io-safety/`.
+`--fix-entry-text` explicitly removes a UTF-8 BOM and normalizes only the entry file to LF. `--uninstall` removes only manifest-tracked files and the managed entry block; it refuses modified managed files unless `--force` is explicitly supplied and preserves unknown files.
+
+Writes use same-directory temporary files and atomic rename. The manifest records hashes, language, profile, version, and the managed entry-block hash.
 
 ## Instruction for agents
 
-Put the operative instruction in the agent entry file. The README can document the policy, but the entry file is where agents are expected to read and follow it. The most important rule is not “always use this tool”; it is “stop guessing after the first quoting or encoding failure and switch to the deterministic path”.
+Yes: the operative instruction belongs in the agent entry file, not only in README. Deployment inserts a compact managed block that tells the agent to load the central rule only at a risky boundary. Routine structured reads and patch/editor operations do not need it.
 
-Minimal instruction for a root-level agent entry file:
+The key behavior is mechanical: after the first quoting, parsing, encoding, or mojibake failure, stop trying variants and switch to the deterministic helper route.
 
-```md
-## Shell and text I/O safety
+## Main helpers
 
-Before the first operation that uses shell, reads or writes text, passes user-controlled values, paths, JSON/YAML/SQL/regex, non-ASCII characters, encodings, BOM, or line endings, read and follow `.agent-io-safety/RULE.md`.
-
-If you must read the rule or skills through terminal output on Windows/PowerShell, use `node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs .agent-io-safety/RULE.md` instead of `Get-Content` or inline `[Console]::OutputEncoding` fixes.
-
-Read the referenced skill file before the matching operation:
-
-- `.agent-io-safety/skills/safe-shell-io/SKILL.md` for complex commands, user values, quoting, shell metacharacters, structured payloads, stdin/stdout, or command-encoding failures.
-- `.agent-io-safety/skills/safe-text-io/SKILL.md` for text files, UTF-8/UTF-16, BOM, line endings, PowerShell 5.1, or mojibake.
-
-Do not repair quoting or mojibake by repeated trial and error. After the first failure, use the deterministic script/spec path from the skill.
-```
-
-The installer uses the shorter managed snippets from [`snippets/`](snippets/) so the root instruction stays small.
-
-## Supported entry files
-
-The same mechanism can be installed into different agent entry files:
+Run exact argv from a strict JSON spec:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md
-node scripts/deploy.mjs --target /path/to/project --entry CLAUDE.md
-node scripts/deploy.mjs --target /path/to/project --entry GEMINI.md
-node scripts/deploy.mjs --target /path/to/project --entry .github/copilot-instructions.md
+node .agent-io-safety/skills/safe-shell-io/scripts/run-from-spec.mjs command.json
 ```
 
-Manual fragments are available in [`snippets/`](snippets/).
+Run a strict UTF-8 Node script with data kept outside inline PowerShell code:
 
-## Run checks
+```sh
+node .agent-io-safety/skills/safe-shell-io/scripts/run-node-utf8.mjs --spec node-task.json
+```
+
+Normalize a local Bash file to LF and stream it through SSH:
+
+```sh
+node .agent-io-safety/skills/safe-shell-io/scripts/remote-bash.mjs host script.sh
+```
+
+Read text and list non-ASCII paths without PowerShell text cmdlets:
+
+```sh
+node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs -- RULE.md
+node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs --json -- RULE.md skills/safe-text-io/SKILL.md
+node .agent-io-safety/skills/safe-text-io/scripts/list-paths.mjs --json --recursive --files -- .
+```
+
+Inspect or explicitly transform bytes:
+
+```sh
+node .agent-io-safety/skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf -- .
+node .agent-io-safety/skills/safe-text-io/scripts/transcode-text.mjs --input source --output target --bom none
+node .agent-io-safety/skills/safe-text-io/scripts/replace-ascii-bytes.mjs --input legacy --in-place --search old --replace new --expect-count 1
+```
+
+All execution helpers use `shell: false`, strict validation, time/output bounds, or bounded streaming as appropriate.
+
+## Hooks
+
+Rules and skills guide agent reasoning; hooks enforce narrow command shapes before execution. Install `--profile full`, then copy the matching example:
+
+```sh
+cp .agent-io-safety/examples/cursor-hooks/hooks.json .cursor/hooks.json
+cp .agent-io-safety/examples/codex-hooks/hooks.json .codex/hooks.json
+```
+
+Read [Cursor hook guidance](docs/cursor-hooks.md) or [Codex hook guidance](docs/codex-hooks.md) before relying on enforcement. Hook coverage depends on the host and intercepted tool surface.
+
+## Diagnose an installation
+
+```sh
+node scripts/doctor.mjs --target /path/to/project
+node scripts/doctor.mjs --target /path/to/project --external
+node scripts/doctor.mjs --target /path/to/project --external-run
+```
+
+`--external` only detects relevant optional linters/scanners on `PATH`; `--external-run` explicitly executes bounded version/module checks. Missing optional tools are warnings.
+
+## Project checks
 
 ```sh
 npm test
 npm run check:text
+npm run check:localization
+npm run check:skills
+npm run check:release
+npm run pack:dry-run
 ```
 
-The same checks without npm:
+CI runs Node.js 18/20/22/24 on Linux, Windows, and macOS, plus a Windows PowerShell 5.1 smoke test.
 
-```sh
-node tests/run-tests.mjs
-node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .
-```
+## Documentation
 
-After installing the kit into a target project, run:
+- [Mechanism](00-MECHANISM.md) and [deployment](01-DEPLOYMENT.md)
+- [Field notes](docs/field-notes.md) and [remote I/O recipes](docs/remote-io-recipes.md)
+- [External tools](docs/external-tools.md) and [project-skill layering](docs/project-skills-layering.md)
+- [Security policy](SECURITY.md) and [changelog](CHANGELOG.md)
 
-```sh
-npm run doctor -- --target /path/to/project --entry AGENTS.md
-npm run doctor -- --target /path/to/project --entry AGENTS.md --external
-```
-
-`--external` only reports optional third-party tools. Missing tools are warnings, not failures.
-
-## Example: safe command execution
-
-Create a UTF-8, no-BOM command spec:
-
-```json
-{
-  "command": "node",
-  "args": ["script.mjs", "Denis: \"exact argument\"", "$5 & 10%"],
-  "cwd": ".",
-  "stdin": "line 1\nline 2\n",
-  "stdoutEncoding": "utf8",
-  "stderrEncoding": "utf8"
-}
-```
-
-Run it:
-
-```sh
-node skills/safe-shell-io/scripts/run-from-spec.mjs command.json
-```
-
-The runner uses `spawn` with `shell: false` and passes every argument as a separate `argv` item.
-
-Do not read, redact, or transform config/env/secrets with inline interpreter one-liners such as `node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c`, or `sh -c`. If the command touches `.env`, TOML/JSON/YAML config, tokens, `Authorization`, `Bearer`, regex, `$`, nested quotes, or non-ASCII values, use a native tool/API, a script file, `run-from-spec.mjs`, `run-node-utf8.mjs --spec`, or `node_repl`, and print only allowlisted metadata.
-
-For Node.js work that needs non-ASCII data across a Windows/PowerShell boundary, keep code in a script file and pass data through a UTF-8 JSON spec:
-
-```sh
-node skills/safe-shell-io/scripts/run-node-utf8.mjs --spec node-task.json
-```
-
-For Bash sent from Windows to SSH, normalize to LF and stream the script through stdin:
-
-```sh
-node skills/safe-shell-io/scripts/remote-bash.mjs host script.sh
-```
-
-## Example: text inspection
-
-Safely read Markdown, JSON, rules, or skills through a terminal/tool boundary:
-
-```sh
-node skills/safe-text-io/scripts/read-text.mjs RULE.md skills/safe-text-io/SKILL.md
-```
-
-The reader accepts UTF-8 with or without BOM, rejects invalid UTF-8 and UTF-16 BOM, and writes UTF-8 bytes to stdout. Windows agents must not fix terminal mojibake with inline PowerShell encoding commands such as `[Console]::OutputEncoding` or `[System.Text.UTF8Encoding]::new($false)`; use `read-text.mjs`.
-
-Safely list paths through a terminal/tool boundary when non-ASCII names may render as mojibake:
-
-```sh
-node skills/safe-text-io/scripts/list-paths.mjs --recursive --json docs
-```
-
-The lister uses Node.js filesystem APIs, writes UTF-8 to stdout, does not read file contents, and does not follow directory symlinks/junctions recursively. Use it instead of trusting corrupted output from `rg --files`, `Get-ChildItem`, or `dir`.
-
-```sh
-node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.md
-```
-
-The inspector strictly checks UTF-8, BOM, line endings, suspicious UTF-16 without BOM, and PowerShell 5.1 safety for `.ps1/.psd1/.psm1`.
-
-## Example: ASCII-safe byte replacement
-
-When a file is not valid UTF-8 but the required edit is ASCII-only, avoid decoding it with replacement characters. Replace raw ASCII byte sequences instead:
-
-```sh
-node skills/safe-text-io/scripts/replace-ascii-bytes.mjs --input legacy.sh --in-place --search old/path --replace new/path
-```
-
-This preserves all non-target bytes and is intentionally limited to ASCII strings or explicit hex bytes.
-
-## Guarantees and boundaries
-
-The kit makes fragile operations deterministic:
-
-- exact argument passing through `argv`;
-- strict UTF-8 validation instead of silent replacement characters;
-- explicit BOM and line-ending policy;
-- safe managed-copy updates with SHA-256 drift detection;
-- symlink-aware deployment writes.
-
-It does not guess legacy encodings, auto-heal mojibake, process binary formats as text, or override higher-priority system/user/project instructions.
-
-## External tools
-
-This kit is not trying to replace mature linters or scanners. It defines the safety boundary, then lets existing tools do domain-specific work. See [`docs/external-tools.md`](docs/external-tools.md) and [`docs/language-policy.md`](docs/language-policy.md).
-
-## Layering with project skills
-
-The kit does not replace project-specific or domain-specific instructions. It sits below them and handles shell/text I/O boundaries. See [`docs/project-skills-layering.md`](docs/project-skills-layering.md).
-
-## Field-tested recipes
-
-See [`docs/field-notes.md`](docs/field-notes.md), [`docs/remote-io-recipes.md`](docs/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md), and [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md) for cases such as terminal mojibake with valid UTF-8 bytes, PowerShell → Node UTF-8 literals, Windows CRLF into remote Bash, complex SSH commands, inline interpreter one-liners around config/env/secrets, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, remote here-doc escaping, Paramiko SFTP rename behavior, long SSH jobs, secret redaction, and floating Docker tags.
-
-## Optional hook enforcement
-
-Rules and skills teach the agent what to do. Hooks can enforce the most mechanical parts around tool calls. See [`docs/cursor-hooks.md`](docs/cursor-hooks.md) and [`docs/codex-hooks.md`](docs/codex-hooks.md). A ready-to-copy Cursor example is in [`examples/cursor-hooks/`](examples/cursor-hooks/).
-
-## npm status
-
-The package is npm-ready but not automatically published by this repository. If the package name is available, publishing can be done manually after a tagged release:
-
-```sh
-npm publish --access public
-```
-
-Useful local commands:
-
-```sh
-npx agent-io-safety-kit --target /path/to/project --entry AGENTS.md --dry-run
-npx safe-shell-run-node-utf8 --spec node-task.json
-npx safe-shell-remote-bash host script.sh
-npx safe-text-list-paths --recursive --json docs
-npx safe-text-read README.md
-npx safe-text-inspect --fail-on-bom --eol lf README.md
-```
-
-## Contributing
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). Encoding and quoting bug reports are especially welcome; please include the exact bytes, shell, OS, command, and expected/actual behavior when possible.
-
-## License
-
-MIT — see [`LICENSE`](LICENSE).
+English is canonical; maintained Russian files preserve the same installed paths through `--lang ru`.

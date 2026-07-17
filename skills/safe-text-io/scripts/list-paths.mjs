@@ -19,14 +19,17 @@ function parseArgs(argv) {
     paths: [],
   };
 
+  let terminated = false;
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
-    if (value === "--help" || value === "-h") options.help = true;
+    if (terminated) options.paths.push(value);
+    else if (value === "--") terminated = true;
+    else if (value === "--help" || value === "-h") options.help = true;
     else if (value === "--json") options.json = true;
     else if (value === "--recursive") options.recursive = true;
     else if (value === "--files") options.files = true;
     else if (value === "--dirs") options.dirs = true;
-    else if (value.startsWith("--")) throw new Error(`unknown option: ${value}`);
+    else if (value.startsWith("-")) throw new Error(`unknown option: ${value}; use -- before a path that starts with -`);
     else options.paths.push(value);
   }
 

@@ -2,64 +2,39 @@
 
 [Russian version](ru/cursor-hooks.md)
 
-Cursor Hooks can add an enforcement layer around the same policies that this kit documents as rules and skills.
+Cursor Hooks can enforce the most mechanical command-shape rules before shell execution. Official documentation: <https://cursor.com/docs/hooks>
 
-Use this integration when you want Cursor to check risky actions before the model relies on memory or discipline.
+## Install
 
-Official docs: <https://cursor.com/docs/hooks>
+Deploy `full` and copy the example:
 
-## What hooks add
-
-Rules and skills are advisory: the agent must decide to read and follow them. Hooks run at lifecycle boundaries such as shell execution, file reads, file edits, MCP calls, prompt submission, and stop.
-
-Good first enforcement points:
-
-- `beforeShellExecution` — block or ask on dangerous command shapes;
-- `afterShellExecution` — audit output for mojibake or other smells;
-- `beforeReadFile` — deny reads of sensitive files;
-- `afterFileEdit` — run formatters or text checks after edits;
-- `beforeMCPExecution` — gate risky MCP tool calls.
-
-Cursor command hooks receive JSON on stdin and return JSON on stdout. A hook can return `permission: "allow"`, `"ask"`, or `"deny"` for supported pre-action events. Exit code `2` also blocks the action. For security-critical checks, set `failClosed: true`.
-
-## Minimal project setup
-
-After deploying this kit to a target project, copy the example hook config:
-
-```sh
-mkdir -p .cursor
-cp .agent-io-safety/examples/cursor-hooks/hooks.json .cursor/hooks.json
+```text
+node scripts/deploy.mjs --target <project-root> --profile full
+mkdir -p <project-root>/.cursor
+cp <project-root>/.agent-io-safety/examples/cursor-hooks/hooks.json <project-root>/.cursor/hooks.json
 ```
 
-The example config runs:
+The adapter receives Cursor's `beforeShellExecution` JSON and calls the shared `skills/safe-shell-io/scripts/shell-policy.mjs`. The example uses `--mode strict` and `failClosed: true`: both policy `review` and `deny` become Cursor `deny`, while safe shapes return `allow`.
 
-```sh
-node .agent-io-safety/examples/cursor-hooks/io-safety-hook.mjs --event beforeShellExecution
-```
+An explicit `--mode advisory` maps policy `review` to Cursor `ask`, but host versions and execution paths may not gate consistently on `ask`; do not use advisory mode as a security boundary.
 
-It currently catches seven field-tested traps:
+## Coverage
 
-- `rsync -e "ssh -n ..."` — denied because rsync uses SSH stdin/stdout as its protocol;
-- `Select-Object -Index 94..112` — denied; use `-Index (94..112)` or `-Skip/-First`;
-- inline interpreter one-liners around config/env/secrets — denied; use a native tool/API, a script file, `run-from-spec.mjs`, `run-node-utf8.mjs --spec`, or `node_repl`, and print only allowlisted metadata;
-- complex inline interpreter one-liners such as `node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c`, or `sh -c` with `$`, regex, pipes, nested quotes, or redaction logic — ask for review and route to a script/spec path;
-- SSH commands containing literal `\n` escapes — ask for review because PowerShell/SSH quoting can produce remote `n...n` output;
-- `rg "-pattern"` before `--` — ask for review because ripgrep treats leading-dash values as options unless option parsing is terminated;
-- Bash `set -u` / `set -o nounset` with `$...` inside double quotes — ask for review because config text such as nginx variables can expand as unset shell variables.
+The policy catches:
 
-## Cloud agents
+- Markdown passed to Node;
+- inline interpreters around config/env/secrets;
+- complex inline interpreter quoting;
+- `rsync -e` with `ssh -n`;
+- unparenthesized PowerShell `Select-Object -Index` ranges;
+- SSH strings containing literal `\n`;
+- ripgrep leading-dash patterns without `--`;
+- Bash nounset with config-like `$...` text in double quotes.
 
-Cursor cloud agents can load project hooks from `.cursor/hooks.json`. User-level hooks from `~/.cursor/hooks.json` are not available in cloud agents. Cloud support is not identical for every hook event, so keep project hooks command-based and test both local and cloud paths before relying on them.
+Detection is segment-aware: text such as `echo node -e is documentation` is allowed because Node is not the executable in that command segment.
 
-## Design notes
+## Boundary
 
-Keep hooks small and deterministic. The hook should decide whether the operation shape is safe; the detailed remediation should point back to:
+Project hooks are the portable choice for Cursor cloud agents; user-level hooks are not available there, and event support can differ. Test local and cloud execution before treating the hook as a security boundary.
 
-- `docs/field-notes.md`;
-- `docs/remote-io-recipes.md`;
-- `examples/powershell-ssh-newlines.md`;
-- `examples/powershell-select-object.md`;
-- `examples/ripgrep-leading-dash.md`;
-- `skills/safe-shell-io/SKILL.md`.
-
-Hooks do not replace the kit. They enforce the most mechanical parts and route the agent back to the safer deterministic path.
+Hooks complement the central rule and skills. They detect shapes, not intent or data semantics, and should route the agent to `run-from-spec.mjs`, `run-node-utf8.mjs`, `remote-bash.mjs`, or `read-text.mjs`.

@@ -29,6 +29,14 @@ node skills/safe-text-io/scripts/read-text.mjs path/to/file.md
 
 Это зона повышенного риска: данные проходят через PowerShell, Node.js, SSH, remote shell и terminal rendering.
 
+### Markdown instructions — не скрипты
+
+`RULE.md`, `SKILL.md`, `README.md` и docs — это text inputs. Если случайно запустить `node SKILL.md`, Node будет парсить Markdown как JavaScript и упадёт с misleading syntax error. Читайте instruction files через:
+
+```sh
+node skills/safe-text-io/scripts/read-text.mjs path/to/SKILL.md
+```
+
 ### PowerShell to Node stdin может повредить non-ASCII literals
 
 Если inline Node.js script передаётся через PowerShell stdin, кириллические пути или строковые literals могут приехать как `????`.
@@ -69,6 +77,12 @@ Pipes, `$`, regex, кавычки, `sed`, `awk` и `grep` внутри `ssh host
 `node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c`, `sh -c` и похожие one-liners легко недооценить. Если они читают config/env/secrets, парсят structured files, делают redaction или содержат regex, `$`, nested quotes, pipes либо non-ASCII данные, считайте их unsafe.
 
 Используйте native tool/API, настоящий script file, `run-from-spec.mjs`, `run-node-utf8.mjs --spec` или `node_repl`. Для secrets печатайте только allowlisted metadata: имена секций, URL hosts, counts, booleans и признаки наличия auth; не делайте inline-redaction raw values в shell-команде.
+
+### Persistent REPL name collisions
+
+Некоторые Node.js/JavaScript REPL tools сохраняют top-level bindings между вызовами. Следующая проверка может упасть на `Identifier has already been declared`, если повторно использует `const i`, `const result` или другое прежнее имя.
+
+Для scratch REPL work используйте `var` для намеренно переиспользуемых имён или выбирайте новые описательные имена на каждую проверку. Для повторяемой или видимой пользователю работы переносите код в script/spec, чтобы каждый запуск начинался с известного scope.
 
 ### Bash `set -u` раскрывает `$...` внутри double quotes
 
@@ -125,7 +139,15 @@ const safe = text.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer <redacted>"
 
 Не полагайтесь на `\n` escaping через цепочку PowerShell → SSH → remote shell. Для маленького фиксированного текста используйте повторяющиеся fixed `echo` commands. Для настоящих payload загружайте файл, передавайте stdin или используйте JSON/Base64.
 
-См. `examples/powershell-ssh-newlines.md`.
+См. `examples/powershell-ssh-newlines.md` в deployment-профиле `full`; правило выше самодостаточно в `core`.
+
+## `remote-bash.mjs` требует существующий local script file
+
+`remote-bash.mjs <host> <script>` предназначен для отправки локального UTF-8 Bash script через `ssh host bash -s`. Если script path указывает на временный файл, сначала создайте и проверьте этот файл.
+
+Для маленького fixed remote check прямой fixed `ssh host command` может быть понятнее, чем создание временного script только ради вызова `remote-bash.mjs`.
+
+Если interactive SSH alias работает, а `remote-bash.mjs` падает, не считайте alias, config, identity или agent environment одинаковыми. Запустите с `--diagnose-ssh`, затем явно передайте нужный OpenSSH executable, config и identity через `--ssh` и повторяющийся `--ssh-arg`.
 
 ## Paramiko SFTP rename может не перезаписать файл
 
@@ -158,7 +180,7 @@ Select-Object -Index (94..112)
 Select-Object -Skip 94 -First 19
 ```
 
-См. `examples/powershell-select-object.md`.
+См. `examples/powershell-select-object.md` в deployment-профиле `full`; правило выше самодостаточно в `core`.
 
 ## `rg` patterns, начинающиеся с `-`, требуют `--`
 
@@ -169,7 +191,7 @@ rg -- "-TODO"
 rg --fixed-strings -- "-literal-user-text"
 ```
 
-См. `examples/ripgrep-leading-dash.md`.
+См. `examples/ripgrep-leading-dash.md` в deployment-профиле `full`; правило выше самодостаточно в `core`.
 
 ## Долгие SSH/rsync операции должны переживать disconnect клиента
 

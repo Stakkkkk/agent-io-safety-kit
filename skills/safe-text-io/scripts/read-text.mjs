@@ -1,56 +1,45 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
 import process from "node:process";
-import { TextDecoder } from "node:util";
+import { decodeUtf8Text } from "../../../lib/text.mjs";
 
 function usage() {
-  process.stderr.write("usage: node read-text.mjs <path> [<path> ...]\n");
+  process.stderr.write("usage: node read-text.mjs [--json|--concat] [--] <path> [<path> ...]\n");
 }
 
-function isUtf8Bom(bytes) {
-  return bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
-}
-
-function isUtf16Bom(bytes) {
-  return bytes.length >= 2 &&
-    ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff));
-}
-
-function decodeUtf8Strict(bytes, label) {
-  if (isUtf16Bom(bytes)) {
-    throw new Error(`${label}: UTF-16 BOM is not supported; transcode explicitly before reading`);
+function parseArgs(argv) {
+  const options = { paths: [], json: false, concat: false };
+  let terminated = false;
+  for (const value of argv) {
+    if (terminated) options.paths.push(value);
+    else if (value === "--") terminated = true;
+    else if (value === "--help" || value === "-h") options.help = true;
+    else if (value === "--json") options.json = true;
+    else if (value === "--concat") options.concat = true;
+    else if (value.startsWith("-")) throw new Error(`unknown option: ${value}; use -- before a path that starts with -`);
+    else options.paths.push(value);
   }
-
-  const content = isUtf8Bom(bytes) ? bytes.subarray(3) : bytes;
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(content);
-  } catch (error) {
-    throw new Error(`${label}: invalid UTF-8: ${error.message}`);
+  if (options.json && options.concat) throw new Error("--json and --concat are mutually exclusive");
+  if (!options.help && options.paths.length === 0) throw new Error("at least one path is required");
+  if (!options.help && options.paths.length > 1 && !options.json && !options.concat) {
+    throw new Error("multiple paths require --json or explicit --concat to avoid ambiguous output boundaries");
   }
-}
-
-async function main(argv) {
-  if (argv.length === 0 || argv.includes("--help") || argv.includes("-h")) {
-    usage();
-    process.exitCode = argv.length === 0 ? 2 : 0;
-    return;
-  }
-
-  const texts = [];
-  for (const filePath of argv) {
-    const bytes = await readFile(filePath);
-    texts.push(decodeUtf8Strict(bytes, filePath));
-  }
-
-  for (const text of texts) {
-    process.stdout.write(Buffer.from(text, "utf8"));
-  }
+  return options;
 }
 
 try {
-  await main(process.argv.slice(2));
+  const options = parseArgs(process.argv.slice(2));
+  if (options.help) usage();
+  else {
+    const results = [];
+    for (const filePath of options.paths) {
+      results.push({ path: filePath, text: decodeUtf8Text(await readFile(filePath), filePath) });
+    }
+    if (options.json) process.stdout.write(Buffer.from(`${JSON.stringify(results)}\n`, "utf8"));
+    else process.stdout.write(Buffer.from(results.map((item) => item.text).join(""), "utf8"));
+  }
 } catch (error) {
   usage();
   process.stderr.write(`read-text: ${error.message}\n`);
-  process.exitCode = 1;
+  process.exitCode = 2;
 }

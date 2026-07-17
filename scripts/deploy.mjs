@@ -1,13 +1,19 @@
 #!/usr/bin/env node
-import { createHash } from "node:crypto";
-import { lstat, readdir, readFile, stat, mkdir, unlink, writeFile } from "node:fs/promises";
+import { readdir, readFile, rmdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
-
-const BEGIN_MARKER = "<!-- agent-io-safety:begin -->";
-const END_MARKER = "<!-- agent-io-safety:end -->";
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+import {
+  assertNoSymlinkPath,
+  inside,
+  isInsidePath,
+  PACKAGE_ROOT,
+  removeManagedEntry,
+  renderManagedFragment,
+  sourceArtifacts,
+  updateManagedEntry,
+  validateManifest,
+} from "../lib/deployment.mjs";
+import { atomicWriteFile, decodeUtf8, detectPreferredEol, exists, normalizeLf, sha256 } from "../lib/text.mjs";
 
 function fail(message, code = 2) {
   process.stderr.write(`deploy: ${message}\n`);
@@ -16,10 +22,15 @@ function fail(message, code = 2) {
 
 function usage() {
   process.stderr.write(
-    "usage: node deploy.mjs [--target dir] [--entry AGENTS.md] " +
-      "[--dest .agent-io-safety] [--lang en|ru] [--dry-run|--check] [--force] " +
-      "[--fragment file] [--fix-entry-text]\n",
+    "usage: node deploy.mjs [--target dir] [--entry AGENTS.md] [--dest .agent-io-safety] " +
+      "[--lang en|ru] [--profile core|full] [--dry-run|--check] [--force] " +
+      "[--fragment file] [--fix-entry-text] [--uninstall]\n",
   );
+}
+
+function takeValue(argv, index, flag) {
+  if (index + 1 >= argv.length) throw new Error(`${flag} requires a value`);
+  return argv[index + 1];
 }
 
 function parseArgs(argv) {
@@ -32,218 +43,69 @@ function parseArgs(argv) {
     force: false,
     fragment: undefined,
     lang: "en",
+    profile: "core",
     fixEntryText: false,
+    uninstall: false,
+    help: false,
+    version: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
-    if (value === "--target") options.target = argv[++index];
-    else if (value === "--entry") options.entry = argv[++index];
-    else if (value === "--dest") options.dest = argv[++index];
-    else if (value === "--fragment") options.fragment = argv[++index];
-    else if (value === "--lang") options.lang = argv[++index];
-    else if (value === "--dry-run") options.dryRun = true;
+    if (["--target", "--entry", "--dest", "--fragment", "--lang", "--profile"].includes(value)) {
+      const next = takeValue(argv, index, value);
+      index += 1;
+      if (value === "--target") options.target = next;
+      else if (value === "--entry") options.entry = next;
+      else if (value === "--dest") options.dest = next;
+      else if (value === "--fragment") options.fragment = next;
+      else if (value === "--lang") options.lang = next;
+      else options.profile = next;
+    } else if (value === "--dry-run") options.dryRun = true;
     else if (value === "--check") options.check = true;
     else if (value === "--force") options.force = true;
     else if (value === "--fix-entry-text") options.fixEntryText = true;
+    else if (value === "--uninstall") options.uninstall = true;
+    else if (value === "--version" || value === "-V") options.version = true;
     else if (value === "--help" || value === "-h") options.help = true;
     else throw new Error(`unknown option: ${value}`);
   }
   if (!options.target || !options.entry || !options.dest || options.fragment === "") {
-    throw new Error("path options require values");
+    throw new Error("path options require non-empty values");
   }
   if (!new Set(["en", "ru"]).has(options.lang)) throw new Error("--lang must be en or ru");
+  if (!new Set(["core", "full"]).has(options.profile)) throw new Error("--profile must be core or full");
   if (options.dryRun && options.check) throw new Error("--dry-run and --check are mutually exclusive");
   if (options.check && options.force) throw new Error("--check and --force are mutually exclusive");
+  if (options.uninstall && options.check) throw new Error("--uninstall and --check are mutually exclusive");
+  if (options.uninstall && options.fixEntryText) throw new Error("--uninstall and --fix-entry-text are mutually exclusive");
   return options;
-}
-
-function sha256(bytes) {
-  return createHash("sha256").update(bytes).digest("hex");
-}
-
-function toPosix(value) {
-  return value.split(path.sep).join("/");
-}
-
-function inside(root, candidate, label) {
-  const absolute = path.resolve(root, candidate);
-  const relative = path.relative(root, absolute);
-  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) return absolute;
-  throw new Error(`${label} must stay inside target root`);
-}
-
-function isInsidePath(root, candidate) {
-  const relative = path.relative(root, candidate);
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
-}
-
-async function assertNoSymlinkPath(root, candidate, label) {
-  const absoluteRoot = path.resolve(root);
-  const absoluteCandidate = path.resolve(candidate);
-  if (absoluteCandidate !== absoluteRoot && !isInsidePath(absoluteRoot, absoluteCandidate)) {
-    throw new Error(`${label} must stay inside target root`);
-  }
-
-  const relative = path.relative(absoluteRoot, absoluteCandidate);
-  if (relative === "") return;
-
-  let current = absoluteRoot;
-  for (const segment of relative.split(path.sep)) {
-    current = path.join(current, segment);
-    try {
-      const metadata = await lstat(current);
-      if (metadata.isSymbolicLink()) {
-        throw new Error(`${label} contains symlink: ${path.relative(root, current)}`);
-      }
-    } catch (error) {
-      if (error.code === "ENOENT") return;
-      throw error;
-    }
-  }
-}
-
-async function exists(filePath) {
-  try {
-    await stat(filePath);
-    return true;
-  } catch (error) {
-    if (error.code === "ENOENT") return false;
-    throw error;
-  }
-}
-
-function decodeUtf8(bytes, label, { allowBom = true } = {}) {
-  const hasBom = bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
-  if (hasBom && !allowBom) throw new Error(`${label} must be UTF-8 without BOM`);
-  if (bytes.length >= 2 && ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff))) {
-    throw new Error(`${label} is UTF-16; convert it explicitly before deployment`);
-  }
-  const content = hasBom ? bytes.subarray(3) : bytes;
-  try {
-    return { text: new TextDecoder("utf-8", { fatal: true }).decode(content), hasBom };
-  } catch (error) {
-    throw new Error(`${label} is not valid UTF-8: ${error.message}`);
-  }
-}
-
-function detectEol(text) {
-  const crlf = (text.match(/\r\n/g) ?? []).length;
-  const withoutCrlf = text.replace(/\r\n/g, "");
-  const lf = (withoutCrlf.match(/\n/g) ?? []).length;
-  return crlf > lf ? "\r\n" : "\n";
-}
-
-function normalizeLf(text) {
-  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-}
-
-function selectFragment(entry) {
-  const normalized = toPosix(entry).toLowerCase();
-  const name = path.posix.basename(normalized);
-  if (normalized === ".github/copilot-instructions.md") return "copilot-instructions.md.fragment";
-  if (normalized.startsWith(".cursor/") || name === ".cursorrules" || name.endsWith(".mdc")) return "cursor-rules.fragment";
-  if (name === "claude.md") return "CLAUDE.md.fragment";
-  if (name === "gemini.md") return "GEMINI.md.fragment";
-  return "AGENTS.md.fragment";
-}
-
-async function localizedSource(canonicalPath, lang) {
-  if (lang !== "ru" || !canonicalPath.endsWith(".md")) return canonicalPath;
-  const localizedPath = canonicalPath.replace(/\.md$/u, ".ru.md");
-  return (await exists(localizedPath)) ? localizedPath : canonicalPath;
-}
-
-function updateEntry(existingText, fragmentLf, eol) {
-  const begin = existingText.indexOf(BEGIN_MARKER);
-  const end = existingText.indexOf(END_MARKER);
-  if ((begin === -1) !== (end === -1)) throw new Error("entry file contains only one managed marker");
-  if (begin !== -1 && (end < begin || existingText.indexOf(BEGIN_MARKER, begin + 1) !== -1 || existingText.indexOf(END_MARKER, end + 1) !== -1)) {
-    throw new Error("entry file contains invalid or duplicate managed markers");
-  }
-
-  const fragment = normalizeLf(fragmentLf).trimEnd().replace(/\n/g, eol);
-  if (begin !== -1) {
-    return existingText.slice(0, begin) + fragment + existingText.slice(end + END_MARKER.length);
-  }
-
-  const trimmed = existingText.replace(/[\r\n]*$/, "");
-  return trimmed.length === 0 ? `${fragment}${eol}` : `${trimmed}${eol}${eol}${fragment}${eol}`;
-}
-
-async function collectFiles(root, relative = "") {
-  const directory = path.join(root, relative);
-  const output = [];
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const childRelative = path.join(relative, entry.name);
-    if (entry.isDirectory()) output.push(...(await collectFiles(root, childRelative)));
-    else if (entry.isFile()) output.push(childRelative);
-  }
-  return output;
-}
-
-async function sourceArtifacts(lang = "en") {
-  const mappings = [
-    { source: path.join(packageRoot, "VERSION"), destination: "VERSION" },
-    { source: await localizedSource(path.join(packageRoot, "RULE.md"), lang), destination: "RULE.md" },
-  ];
-
-  for (const relative of await collectFiles(path.join(packageRoot, "docs"))) {
-    mappings.push({
-      source: path.join(packageRoot, "docs", relative),
-      destination: path.join("docs", relative),
-    });
-  }
-
-  for (const relative of await collectFiles(path.join(packageRoot, "examples"))) {
-    mappings.push({
-      source: path.join(packageRoot, "examples", relative),
-      destination: path.join("examples", relative),
-    });
-  }
-
-  const skillsRoot = path.join(packageRoot, "skills");
-  for (const relative of await collectFiles(skillsRoot)) {
-    if (relative.endsWith(".ru.md")) continue;
-    const canonicalPath = path.join(skillsRoot, relative);
-    mappings.push({
-      source: await localizedSource(canonicalPath, lang),
-      destination: path.join("skills", relative),
-    });
-  }
-
-  const artifacts = [];
-  for (const mapping of mappings) {
-    const bytes = await readFile(mapping.source);
-    artifacts.push({ ...mapping, bytes, hash: sha256(bytes), destination: toPosix(mapping.destination) });
-  }
-  return artifacts.sort((left, right) => left.destination.localeCompare(right.destination));
 }
 
 async function readManifest(manifestPath) {
   if (!(await exists(manifestPath))) return undefined;
   const decoded = decodeUtf8(await readFile(manifestPath), "deployment manifest", { allowBom: false });
-  const manifest = JSON.parse(decoded.text);
-  if (!manifest || !Array.isArray(manifest.files)) throw new Error("deployment manifest has invalid structure");
-  return manifest;
+  return validateManifest(JSON.parse(decoded.text));
 }
 
 async function hashIfExists(filePath) {
   return (await exists(filePath)) ? sha256(await readFile(filePath)) : undefined;
 }
 
-async function buildState(options) {
+async function targetPaths(options) {
   const targetRoot = path.resolve(options.target);
   const targetInfo = await stat(targetRoot);
   if (!targetInfo.isDirectory()) throw new Error("target must be a directory");
-
   const entryPath = inside(targetRoot, options.entry, "entry");
   const destinationRoot = inside(targetRoot, options.dest, "destination");
   if (isInsidePath(destinationRoot, entryPath)) throw new Error("entry file cannot be inside deployment destination");
+  return { targetRoot, entryPath, destinationRoot, manifestPath: path.join(destinationRoot, "MANIFEST.json") };
+}
 
-  const artifacts = await sourceArtifacts(options.lang);
-  const version = decodeUtf8(await readFile(path.join(packageRoot, "VERSION")), "VERSION", { allowBom: false }).text.trim();
-  const manifestPath = path.join(destinationRoot, "MANIFEST.json");
-  const oldManifest = await readManifest(manifestPath);
+async function buildInstallState(options) {
+  const paths = await targetPaths(options);
+  const artifacts = await sourceArtifacts({ lang: options.lang, profile: options.profile });
+  const version = decodeUtf8(await readFile(path.join(PACKAGE_ROOT, "VERSION")), "VERSION", { allowBom: false }).text.trim();
+  const oldManifest = await readManifest(paths.manifestPath);
   const oldFiles = new Map((oldManifest?.files ?? []).map((item) => [item.path, item.sha256]));
   const newFiles = new Map(artifacts.map((item) => [item.destination, item]));
   const conflicts = [];
@@ -251,75 +113,61 @@ async function buildState(options) {
   const removals = [];
 
   for (const artifact of artifacts) {
-    const destinationPath = inside(destinationRoot, artifact.destination, "artifact path");
+    const destinationPath = inside(paths.destinationRoot, artifact.destination, "artifact path");
     const currentHash = await hashIfExists(destinationPath);
     const oldHash = oldFiles.get(artifact.destination);
     if (currentHash && currentHash !== artifact.hash && currentHash !== oldHash) {
-      conflicts.push(`modified managed file: ${path.relative(targetRoot, destinationPath)}`);
+      conflicts.push(`modified managed file: ${path.relative(paths.targetRoot, destinationPath)}`);
     }
     if (currentHash !== artifact.hash) writes.push({ ...artifact, destinationPath });
   }
 
   for (const [oldPath, oldHash] of oldFiles) {
     if (newFiles.has(oldPath)) continue;
-    const destinationPath = inside(destinationRoot, oldPath, "stale artifact path");
+    const destinationPath = inside(paths.destinationRoot, oldPath, "stale artifact path");
     const currentHash = await hashIfExists(destinationPath);
     if (!currentHash) continue;
-    if (currentHash !== oldHash) conflicts.push(`modified stale managed file: ${path.relative(targetRoot, destinationPath)}`);
+    if (currentHash !== oldHash) conflicts.push(`modified stale managed file: ${path.relative(paths.targetRoot, destinationPath)}`);
     else removals.push(destinationPath);
   }
 
-  const fragmentPath = options.fragment
-    ? path.resolve(packageRoot, options.fragment)
-    : path.join(packageRoot, "snippets", options.lang === "ru" ? "ru" : "", selectFragment(options.entry));
-  if (!isInsidePath(packageRoot, fragmentPath)) throw new Error("fragment must stay inside package root");
-  const template = decodeUtf8(
-    await readFile(fragmentPath),
-    "entry fragment",
-    { allowBom: false },
-  ).text;
-  const ruleRelative = toPosix(path.relative(path.dirname(entryPath), path.join(destinationRoot, "RULE.md")));
-  const ruleLink = ruleRelative.startsWith(".") ? ruleRelative : `./${ruleRelative}`;
-  const ruleFileRelative = toPosix(path.relative(targetRoot, path.join(destinationRoot, "RULE.md")));
-  const ruleFilePath = ruleFileRelative.startsWith(".") ? ruleFileRelative : `./${ruleFileRelative}`;
-  const readTextRelative = toPosix(path.relative(targetRoot, path.join(destinationRoot, "skills", "safe-text-io", "scripts", "read-text.mjs")));
-  const readTextPath = readTextRelative.startsWith(".") ? readTextRelative : `./${readTextRelative}`;
-  const renderedFragment = template
-    .replaceAll("{{RULE_PATH}}", ruleLink)
-    .replaceAll("{{RULE_FILE_PATH}}", ruleFilePath)
-    .replaceAll("{{READ_TEXT_PATH}}", readTextPath);
+  const renderedFragment = await renderManagedFragment({
+    ...paths,
+    lang: options.lang,
+    fragment: options.fragment,
+  });
 
   let currentEntryText = "";
   let entryTextForUpdate = "";
   let currentEntryHasBom = false;
   let expectedEntryHasBom = false;
   let entryEol = "\n";
-  if (await exists(entryPath)) {
-    const decoded = decodeUtf8(await readFile(entryPath), "entry file");
+  if (await exists(paths.entryPath)) {
+    const decoded = decodeUtf8(await readFile(paths.entryPath), "entry file");
     currentEntryText = decoded.text;
     currentEntryHasBom = decoded.hasBom;
     expectedEntryHasBom = options.fixEntryText ? false : decoded.hasBom;
     entryTextForUpdate = options.fixEntryText ? normalizeLf(decoded.text) : decoded.text;
-    entryEol = options.fixEntryText ? "\n" : detectEol(decoded.text);
+    entryEol = options.fixEntryText ? "\n" : detectPreferredEol(decoded.text);
   }
-  const expectedEntryText = updateEntry(entryTextForUpdate, renderedFragment, entryEol);
+  const expectedEntryText = updateManagedEntry(entryTextForUpdate, renderedFragment, entryEol);
   const entryChanged = expectedEntryText !== currentEntryText || expectedEntryHasBom !== currentEntryHasBom;
 
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     packageVersion: version,
     language: options.lang,
+    profile: options.profile,
+    entry: {
+      fragment: options.fragment ? "custom" : "default",
+      blockSha256: sha256(Buffer.from(normalizeLf(renderedFragment).trimEnd(), "utf8")),
+    },
     files: artifacts.map((artifact) => ({ path: artifact.destination, sha256: artifact.hash })),
   };
   const manifestBytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-  const expectedManifestHash = sha256(manifestBytes);
-  const currentManifestHash = await hashIfExists(manifestPath);
 
   return {
-    targetRoot,
-    entryPath,
-    destinationRoot,
-    manifestPath,
+    ...paths,
     manifestBytes,
     oldManifest,
     conflicts,
@@ -328,12 +176,11 @@ async function buildState(options) {
     entryChanged,
     expectedEntryText,
     entryHasBom: expectedEntryHasBom,
-    entryEol,
-    manifestChanged: currentManifestHash !== expectedManifestHash,
+    manifestChanged: await hashIfExists(paths.manifestPath) !== sha256(manifestBytes),
   };
 }
 
-function reportPlan(state) {
+function reportInstallPlan(state) {
   for (const conflict of state.conflicts) process.stdout.write(`CONFLICT ${conflict}\n`);
   for (const item of state.writes) process.stdout.write(`WRITE ${path.relative(state.targetRoot, item.destinationPath)}\n`);
   for (const item of state.removals) process.stdout.write(`REMOVE ${path.relative(state.targetRoot, item)}\n`);
@@ -345,17 +192,23 @@ function reportPlan(state) {
   ) process.stdout.write("UP-TO-DATE\n");
 }
 
-async function deploy(options) {
-  const state = await buildState(options);
-  reportPlan(state);
+async function pruneEmptyDirectories(root, current = root) {
+  if (!(await exists(current))) return;
+  for (const entry of await readdir(current, { withFileTypes: true })) {
+    if (entry.isDirectory()) await pruneEmptyDirectories(root, path.join(current, entry.name));
+  }
+  if (current !== root && (await readdir(current)).length === 0) await rmdir(current);
+}
 
+async function install(options) {
+  const state = await buildInstallState(options);
+  reportInstallPlan(state);
   if (options.check) {
     const invalid = state.conflicts.length > 0 || state.writes.length > 0 || state.removals.length > 0 ||
       state.entryChanged || state.manifestChanged || !state.oldManifest;
     process.exitCode = invalid ? 1 : 0;
     return;
   }
-
   if (state.conflicts.length > 0 && !options.force) {
     throw new Error("managed files contain local changes; inspect them or pass --force");
   }
@@ -363,35 +216,89 @@ async function deploy(options) {
 
   for (const item of state.writes) {
     await assertNoSymlinkPath(state.targetRoot, item.destinationPath, "artifact path");
-    await mkdir(path.dirname(item.destinationPath), { recursive: true });
-    await writeFile(item.destinationPath, item.bytes);
+    await atomicWriteFile(item.destinationPath, item.bytes);
   }
   for (const item of state.removals) {
     await assertNoSymlinkPath(state.targetRoot, item, "stale artifact path");
     await unlink(item);
   }
+  await pruneEmptyDirectories(state.destinationRoot);
 
   if (state.entryChanged) {
     await assertNoSymlinkPath(state.targetRoot, state.entryPath, "entry file");
-    await mkdir(path.dirname(state.entryPath), { recursive: true });
     const content = Buffer.from(state.expectedEntryText, "utf8");
     const bytes = state.entryHasBom ? Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), content]) : content;
-    await writeFile(state.entryPath, bytes);
+    await atomicWriteFile(state.entryPath, bytes);
   }
 
   await assertNoSymlinkPath(state.targetRoot, state.manifestPath, "deployment manifest");
-  await mkdir(state.destinationRoot, { recursive: true });
   if (state.manifestChanged || state.writes.length > 0 || state.removals.length > 0) {
-    await writeFile(state.manifestPath, state.manifestBytes);
+    await atomicWriteFile(state.manifestPath, state.manifestBytes);
   }
+}
+
+async function buildUninstallState(options) {
+  const paths = await targetPaths(options);
+  const manifest = await readManifest(paths.manifestPath);
+  if (!manifest) throw new Error("deployment manifest does not exist; refusing an untracked uninstall");
+
+  const conflicts = [];
+  const removals = [];
+  for (const item of manifest.files) {
+    const filePath = inside(paths.destinationRoot, item.path, "managed artifact path");
+    const currentHash = await hashIfExists(filePath);
+    if (!currentHash) continue;
+    if (currentHash !== item.sha256) conflicts.push(`modified managed file: ${path.relative(paths.targetRoot, filePath)}`);
+    removals.push(filePath);
+  }
+
+  if (!(await exists(paths.entryPath))) throw new Error("entry file does not exist; refusing to remove only the managed files");
+  const decodedEntry = decodeUtf8(await readFile(paths.entryPath), "entry file");
+  const expectedEntryText = removeManagedEntry(decodedEntry.text);
+  return { ...paths, manifest, conflicts, removals, decodedEntry, expectedEntryText };
+}
+
+function reportUninstallPlan(state) {
+  for (const conflict of state.conflicts) process.stdout.write(`CONFLICT ${conflict}\n`);
+  for (const item of state.removals) process.stdout.write(`REMOVE ${path.relative(state.targetRoot, item)}\n`);
+  process.stdout.write(`UPDATE ${path.relative(state.targetRoot, state.entryPath)}\n`);
+  process.stdout.write(`REMOVE ${path.relative(state.targetRoot, state.manifestPath)}\n`);
+}
+
+async function uninstall(options) {
+  const state = await buildUninstallState(options);
+  reportUninstallPlan(state);
+  if (state.conflicts.length > 0 && !options.force) {
+    throw new Error("managed files contain local changes; inspect them or pass --force to remove them");
+  }
+  if (options.dryRun) return;
+
+  for (const item of state.removals) {
+    await assertNoSymlinkPath(state.targetRoot, item, "managed artifact path");
+    await unlink(item);
+  }
+  await assertNoSymlinkPath(state.targetRoot, state.entryPath, "entry file");
+  const content = Buffer.from(state.expectedEntryText, "utf8");
+  const bytes = state.decodedEntry.hasBom ? Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), content]) : content;
+  await atomicWriteFile(state.entryPath, bytes);
+  await assertNoSymlinkPath(state.targetRoot, state.manifestPath, "deployment manifest");
+  await unlink(state.manifestPath);
+  await pruneEmptyDirectories(state.destinationRoot);
+  if ((await exists(state.destinationRoot)) && (await readdir(state.destinationRoot)).length === 0) await rmdir(state.destinationRoot);
 }
 
 try {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
     usage();
-    process.exitCode = 0;
-  } else await deploy(options);
+  } else if (options.version) {
+    const version = decodeUtf8(await readFile(path.join(PACKAGE_ROOT, "VERSION")), "VERSION", { allowBom: false }).text.trim();
+    process.stdout.write(`${version}\n`);
+  } else if (options.uninstall) {
+    await uninstall(options);
+  } else {
+    await install(options);
+  }
 } catch (error) {
   usage();
   fail(error.message);

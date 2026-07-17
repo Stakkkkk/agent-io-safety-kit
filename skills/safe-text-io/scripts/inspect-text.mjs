@@ -30,9 +30,12 @@ function parseArgs(argv) {
     excludes: new Set(DEFAULT_EXCLUDES),
     paths: [],
   };
+  let terminated = false;
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
-    if (value === "--help" || value === "-h") options.help = true;
+    if (terminated) options.paths.push(value);
+    else if (value === "--") terminated = true;
+    else if (value === "--help" || value === "-h") options.help = true;
     else if (value === "--json") options.json = true;
     else if (value === "--all-files") options.allFiles = true;
     else if (value === "--fail-on-bom") options.failOnBom = true;
@@ -44,7 +47,7 @@ function parseArgs(argv) {
       const name = argv[++index];
       if (!name) throw new Error("--exclude requires a directory name");
       options.excludes.add(name);
-    } else if (value.startsWith("--")) throw new Error(`unknown option: ${value}`);
+    } else if (value.startsWith("-")) throw new Error(`unknown option: ${value}; use -- before a path that starts with -`);
     else options.paths.push(value);
   }
   if (!options.help && options.paths.length === 0) throw new Error("at least one path is required");

@@ -1,112 +1,48 @@
 # Safe shell and text I/O rule
 
-## Required route
+## Load only at a risky boundary
 
-Before the first related operation, identify the risk boundary and read the relevant skill:
+Before the first matching operation, read the referenced skill relative to this file:
 
-- If a command contains user text, complex arguments, paths with spaces, quotes, shell metacharacters, JSON/YAML/SQL/regex, multiline values, or non-ASCII values — read `./skills/safe-shell-io/SKILL.md`.
-- If an operation reads, creates, edits, generates, or transcodes text files, and encoding, BOM, or line endings matter — read `./skills/safe-text-io/SKILL.md`.
-- If a command creates a text file or passes text between processes — apply both skills.
+- `skills/safe-shell-io/SKILL.md` when a command contains user/project data, non-ASCII text, spaces, nested quotes, shell metacharacters, structured data, regex, multiline input, remote execution, or secrets;
+- `skills/safe-text-io/SKILL.md` when encoding, BOM, line endings, terminal text display, non-ASCII paths, transcoding, or unknown bytes matter;
+- both when a command generates or transports text.
 
-Resolve paths relative to this file. Do not rely on automatic skill discovery.
+Routine structured reads and patch/editor operations with no shell or encoding boundary do not require reloading these skills.
 
-## Policy priority
+## Mechanical routes
 
-Determine text format in this order:
+1. Prefer native APIs/tools and structured editors. For a simple command, use one shell layer and separate arguments.
+2. Never interpolate user/project data into a command string, regex, JSON, or script. Put complex argv in a UTF-8 JSON spec and run `safe-shell-io/scripts/run-from-spec.mjs`.
+3. Treat `node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c`, and similar inline interpreters as unsafe when they touch files, structured data, non-ASCII text, regex, config, environment, or secrets. Use a reviewed script file/spec instead. Fixed ASCII diagnostics such as `node --version` are the narrow exception.
+4. Never redact secrets inline. Parse safely and print only allowlisted metadata such as key presence, counts, hosts, section names, or auth shape—not values.
+5. Read UTF-8 instructions through terminal boundaries with `safe-text-io/scripts/read-text.mjs`; do not run Markdown with Node and do not repair PowerShell output with inline `OutputEncoding` commands.
+6. If CLI filename output shows mojibake, verify paths with `safe-text-io/scripts/list-paths.mjs`; display corruption is not proof that filesystem bytes are damaged.
+7. Put `--` before user-controlled positional arguments that may start with `-`; for ripgrep use `rg -- "-pattern"` or `rg --fixed-strings -- "-literal"`.
+8. Do not pass complex SSH commands, scripts, pipes, regex, `$`, or newline escapes through layered quoting. Use a script/file/spec; for Windows-to-Bash use `safe-shell-io/scripts/remote-bash.mjs`.
+9. After the first quoting, parsing, encoding, or mojibake failure, stop trying variants and switch to the deterministic helper route.
 
-1. explicit user requirement;
-2. project instructions;
-3. `.editorconfig`, `.gitattributes`, tool configuration, and existing file bytes;
-4. if no policy exists — UTF-8 without BOM and LF for new text.
+## Text policy
 
-Do not guess a legacy encoding and do not rewrite a file after decoding with replacement characters. If a non-UTF-8 or unknown-encoding file only needs an ASCII byte sequence changed, prefer `safe-text-io/scripts/replace-ascii-bytes.mjs` over whole-file text decoding. When ambiguous, stop the conversion, report the observed bytes/BOM, and ask for a decision.
+Choose format in this order: explicit user requirement, project policy, `.editorconfig`/`.gitattributes`/existing bytes, then UTF-8 without BOM and LF for new text.
 
-## Safe work methods
+Never guess a legacy encoding or save text decoded with replacement characters. For an ASCII-only change in a non-UTF-8 or unknown file, use `safe-text-io/scripts/replace-ascii-bytes.mjs` with an expected replacement count.
 
-1. For normal file edits, use a structured editor or patch API rather than shell redirection.
-2. For simple commands, use one shell layer and pass data as separate arguments.
-3. Do not nest `sh -c`, `cmd /c`, `powershell -Command`, or equivalent wrappers inside an already-running shell unless unavoidable.
-4. Do not interpolate user values into a command line, script, regex, or JSON.
-5. For complex argv, create a UTF-8 JSON spec and run `safe-shell-io/scripts/run-from-spec.mjs`.
-6. For reading `RULE.md`, `SKILL.md`, Markdown, JSON, or other UTF-8 text through terminal output, use `safe-text-io/scripts/read-text.mjs <path>`; do not use PowerShell `Get-Content` plus `[Console]::OutputEncoding`.
-7. For listing paths when terminal output may corrupt non-ASCII names, use `safe-text-io/scripts/list-paths.mjs <path>`; do not trust mojibake from `rg --files`, `Get-ChildItem`, or `dir` as evidence of damaged filenames.
-8. For encoding analysis, transcoding, and ASCII-safe byte replacement, use `safe-text-io` scripts; do not rely on shell defaults.
-9. Do not embed `[System.Text.UTF8Encoding]::new($false)` or similar encoding fixes inside `powershell -Command`; nested quoting can change `$false` or break the command.
-10. Do not send non-ASCII inline Node.js code or literals through PowerShell stdin; use `safe-shell-io/scripts/run-node-utf8.mjs --spec <spec.json>` or a script file plus JSON/Base64 payload.
-11. Do not send complex SSH commands containing pipes, `$`, regex, quotes, `sed`, `awk`, or `grep` as one command string; use `safe-shell-io/scripts/remote-bash.mjs`, stdin, a file, or a spec.
-12. After the first quoting, parsing, or mojibake failure, stop trying variants and switch to the deterministic path from the skills.
+## Platform notes
 
-## Inline interpreter one-liners
+- Windows PowerShell 5.1 text defaults are not portable. Prefer ASCII-only `.ps1`; if non-ASCII is required, document and verify a BOM-based exception.
+- `ssh -n` is useful only when SSH must not consume parent stdin; never place it inside `rsync -e`.
+- Persistent JavaScript REPLs retain top-level names. Use fresh names/`var` for probes or a repeatable script/spec.
+- Long remote work should run under remote supervision with logs and polling.
 
-Commands such as `node -e`, `node --eval`, `node -p`, `python -c`, `python3 -c`, `py -c`, `ruby -e`, `perl -e`, `powershell -Command`, `pwsh -Command`, `cmd /c`, `bash -c`, and `sh -c` are unsafe by default when they read or transform user/project files, config/env/secrets, JSON/YAML/TOML, regex, paths with spaces, non-ASCII text, or contain `$`, quotes, backticks, `{}`, `[]`, `|`, `&`, `;`, `<`, or `>`.
+## Verification and references
 
-In those cases, use one of:
+Inspect changed text with `safe-text-io/scripts/inspect-text.mjs`, verify exit codes, and test risky paths with spaces, quotes, `$`, a newline, and non-ASCII text.
 
-- native MCP/API/tool access;
-- a separate script file created through a structured editor or patch API;
-- `safe-shell-io/scripts/run-from-spec.mjs`;
-- `safe-shell-io/scripts/run-node-utf8.mjs --spec <spec.json>`;
-- `node_repl` when available and suitable.
+Read detailed recipes only when relevant:
 
-The narrow exception is fixed ASCII diagnostics with no user/project data, no regex, no secrets, and no nested quoting, such as `node --version`.
-
-## Config/env/secrets
-
-If a command reads `.env`, `.toml`, `.json`, `.yaml`, `.yml`, service config files, or files likely to contain tokens or passwords, do not redact inline in a shell command. Read through a safe script/API, parse structurally where practical, and print only an allowlist: section names, key presence, URL hostnames, counts, server names, or auth header shape. Never print raw secret values.
-
-## External tools
-
-- If the project already has a dedicated linter, formatter, schema validator, or scanner for the affected file type, run it after this kit has stabilized shell/text I/O boundaries.
-- Do not replace a missing external tool with an unapproved download or install. Report the useful tool, provide the official source, and ask for explicit installation approval.
-- External tools do not cancel the kit’s core guarantees: exact argv transfer, strict decoding checks, and explicit BOM/line-ending policy.
-- Encoding detectors are diagnostic hints only. Do not rewrite a file based on probabilistic detection without an explicit user decision.
-- See `docs/external-tools.md` for recommended tools.
-
-## Project skills
-
-- This kit does not replace project-specific or domain-specific skills. It sits below them and controls shell/text I/O boundaries.
-- Use project skills to decide what operation should happen; use this kit to decide how to perform the shell/text I/O safely.
-- See `docs/project-skills-layering.md` for the layering model.
-
-## Field-tested recipes
-
-Read `docs/field-notes.md` when an operation touches any of these known traps:
-
-- terminal or tool output shows mojibake but file bytes may still be valid;
-- terminal or tool output corrupts non-ASCII path names from `rg --files`, `Get-ChildItem`, `dir`, or another CLI listing;
-- SSH, rsync, SFTP, remote shell, here-doc, or long-running remote operations are involved;
-- Windows/PowerShell sends Node.js scripts or data containing non-ASCII text;
-- inline interpreter one-liners read config/env/secrets, structured files, regex, or non-ASCII data;
-- Windows/PowerShell sends Bash to SSH, especially from a here-string or CRLF source file;
-- SSH command strings contain pipes, `$`, regex, quotes, `sed`, `awk`, `grep`, or nginx variables under `set -u`;
-- PowerShell/SSH command strings contain `\n` newline escapes;
-- PowerShell ranges or line windows are involved;
-- CLI search patterns or user-controlled positional values may start with `-`, especially `rg` patterns;
-- a non-UTF-8 file needs an ASCII-only byte replacement;
-- floating Docker tags are being migrated or preserved.
-
-Read `docs/remote-io-recipes.md` before composing multi-layer remote commands. Use `safe-shell-io/scripts/run-node-utf8.mjs` for Node scripts/data crossing PowerShell, `safe-shell-io/scripts/remote-bash.mjs` for Bash scripts crossing Windows to SSH, `examples/powershell-select-object.md` for PowerShell range syntax, `examples/powershell-ssh-newlines.md` for PowerShell/SSH newline escaping, `examples/ripgrep-leading-dash.md` for `rg -- "-pattern"`, and `examples/remote-script-boundaries.md` before embedding scripts inside local-language strings.
-
-## Optional hook enforcement
-
-If the host agent supports lifecycle hooks, use them as a mechanical enforcement layer around this rule. See `docs/cursor-hooks.md` and `docs/codex-hooks.md`. Hooks do not replace the skills; they block or route the most obvious unsafe tool-call shapes.
-
-## PowerShell
-
-- Always account for differences between Windows PowerShell 5.1 and PowerShell 7+.
-- In Windows PowerShell 5.1, do not rely on `Get-Content`, `Set-Content`, `Out-File`, `$OutputEncoding`, the active code page, or redirection without verifying byte semantics.
-- If PowerShell terminal output shows mojibake while reading instructions, do not inline `[Console]::OutputEncoding` or `[System.Text.UTF8Encoding]::new($false)` fixes; read the file with `node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs <path>`.
-- If PowerShell terminal output corrupts non-ASCII file names or shows `????` in listings from `rg --files`, `Get-ChildItem`, `dir`, or another CLI, do not infer that files are damaged and do not try code-page fixes. Repeat the listing with `node .agent-io-safety/skills/safe-text-io/scripts/list-paths.mjs <path>`.
-- For PowerShell 5.1-compatible `.ps1` files, prefer ASCII-only. If non-ASCII is required, explicitly choose a supported BOM-based encoding and document the exception in project policy.
-- Use `-LiteralPath` for paths and arrays/splatting for arguments.
-
-## Result verification
-
-Before finishing a task:
-
-1. inspect affected text files with `inspect-text.mjs`;
-2. confirm expected encoding, BOM, and line endings;
-3. run the relevant command or test with data containing quotes and non-ASCII characters;
-4. make sure no step used implicit repeated shell parsing of data.
-
-Explicit project policy can change file formats, but it does not cancel exact argument passing, strict decoding validation, or the ban on trial-and-error “repair” of damaged text.
+- `docs/field-notes.md` for field-tested traps;
+- `docs/remote-io-recipes.md` for SSH/rsync/SFTP/remote jobs;
+- `docs/external-tools.md` for optional linters and scanners;
+- `docs/project-skills-layering.md` for coexistence with domain skills;
+- `docs/cursor-hooks.md` and `docs/codex-hooks.md` for mechanical enforcement.

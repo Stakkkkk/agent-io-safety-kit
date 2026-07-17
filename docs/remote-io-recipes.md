@@ -41,6 +41,20 @@ Use `--print-normalized` for a local dry check:
 node skills/safe-shell-io/scripts/remote-bash.mjs --print-normalized host script.sh
 ```
 
+If normal `ssh host ...` works but the helper does not, check which SSH executable and environment the helper sees:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs --diagnose-ssh host script.sh
+```
+
+On Windows, force the same OpenSSH executable, config, and identity that work interactively:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs --ssh "C:\Windows\System32\OpenSSH\ssh.exe" --ssh-arg -F --ssh-arg "C:\Users\me\.ssh\config" --ssh-arg -i --ssh-arg "C:\Users\me\.ssh\id_ed25519" host script.sh
+```
+
+Pass each SSH option as its own repeated `--ssh-arg`.
+
 The helper reads the script as strict UTF-8, rejects UTF-16/invalid UTF-8, converts `CRLF`/`CR` to `LF`, and sends bytes to `ssh host bash -s` without a local shell.
 
 ## PowerShell/SSH newline escapes
@@ -55,7 +69,7 @@ ssh host "echo 'line 1'; echo 'line 2'"
 
 For generated or user-controlled payloads, do not use `echo`. Upload a file, stream bytes through stdin, or send JSON/Base64 data and decode it remotely.
 
-See `examples/powershell-ssh-newlines.md`.
+See `examples/powershell-ssh-newlines.md` in a `full` deployment; this recipe remains self-contained in `core`.
 
 ## `ssh -n`
 

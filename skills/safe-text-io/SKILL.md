@@ -5,69 +5,36 @@ description: Inspect, read, create, edit, validate, and transcode text with expl
 
 # Safe text I/O
 
-## Determine policy
+## Policy and route
 
-Choose the format in this priority order:
+Choose format by explicit user requirement, project policy, `.editorconfig`/`.gitattributes`/existing bytes, then UTF-8 without BOM and LF for new text.
 
-1. explicit user requirement;
-2. project instructions;
-3. `.editorconfig`, `.gitattributes`, tool configuration, and existing file bytes;
-4. for new text without policy — UTF-8 without BOM and LF.
-
-Do not guess legacy encodings. Do not decode with replacement characters and save the result over the source.
-
-## Choose the operation
-
-- For normal edits, use a structured editor or patch API.
-- For reading Markdown, JSON, rules, skills, or other UTF-8 text through a terminal/tool boundary, run `scripts/read-text.mjs`.
-- For listing paths when terminal output may corrupt non-ASCII names, run `scripts/list-paths.mjs`.
-- For diagnostics, run `scripts/inspect-text.mjs`.
-- For explicit transcoding, run `scripts/transcode-text.mjs`.
-- For ASCII-only edits in non-UTF-8 or unknown-encoding files, run `scripts/replace-ascii-bytes.mjs`.
-- For commands that generate text, also apply `safe-shell-io` and specify stdout encoding.
-
-Do not use shell redirection, `Set-Content`, `Out-File`, `echo`, or implicit `Get-Content` unless their exact byte semantics are verified for the current shell version.
+Use a structured editor/patch for normal edits. Never guess a legacy encoding, save replacement-decoded text, or rely on shell/PowerShell text defaults.
 
 ## Read text safely
 
-When an agent needs to read text through stdout, especially on Windows or PowerShell, use the strict reader:
-
 ```text
-node <skill-dir>/scripts/read-text.mjs <path> [<path> ...]
+node <skill-dir>/scripts/read-text.mjs [--] <path>
+node <skill-dir>/scripts/read-text.mjs --json [--] <path> <path> ...
 ```
 
-It reads bytes directly, accepts UTF-8 with or without BOM, rejects UTF-16 BOM and invalid UTF-8, strips a UTF-8 BOM only for output, and writes UTF-8 bytes to stdout.
-
-Use it for `RULE.md`, `SKILL.md`, Markdown, JSON, and other instruction files when terminal output is the boundary. Do not try to repair mojibake with `Get-Content`, `[Console]::OutputEncoding`, or inline `powershell -Command` encoding snippets such as `[System.Text.UTF8Encoding]::new($false)`.
+The reader accepts UTF-8 with/without BOM and rejects UTF-16 BOM or invalid UTF-8. Multiple files require `--json` or explicit `--concat`. Do not use `Get-Content` plus inline `OutputEncoding` fixes.
 
 ## List paths safely
 
-When an agent needs a path listing through stdout, especially on Windows or PowerShell, use the filesystem-API path lister:
-
 ```text
-node <skill-dir>/scripts/list-paths.mjs <path> [<path> ...]
-node <skill-dir>/scripts/list-paths.mjs --recursive --files <path>
-node <skill-dir>/scripts/list-paths.mjs --json --recursive <path>
+node <skill-dir>/scripts/list-paths.mjs --json --recursive --files -- <path>
 ```
 
-Use it when `rg --files`, `Get-ChildItem`, `dir`, or another CLI listing shows mojibake or `????` for non-ASCII names. Do not infer filesystem damage from terminal display and do not try code-page fixes. The lister reads names through Node.js filesystem APIs, writes UTF-8 to stdout, does not read file contents, and does not follow directory symlinks/junctions recursively.
+Use this when terminal listings show mojibake/non-ASCII `????`. Display corruption is not proof of damaged names.
 
-## Inspect files
-
-Inspect one file or directory:
+## Inspect
 
 ```text
-node <skill-dir>/scripts/inspect-text.mjs <path> [<path> ...]
+node <skill-dir>/scripts/inspect-text.mjs -- <path> [<path> ...]
 ```
 
-Useful strict flags:
-
-- `--fail-on-bom` — forbid any BOM;
-- `--eol lf|crlf` — check line endings;
-- `--ps51-safe` — require ASCII-only or UTF-8 BOM for PowerShell 5.1 files;
-- `--json` — return a machine-readable report.
-
-Invalid UTF-8 and UTF-16 are always errors. Binary files are skipped.
+Useful flags: `--fail-on-bom`, `--eol lf|crlf`, `--ps51-safe`, and `--json`. Invalid UTF-8 and UTF-16 are errors.
 
 ## Transcode explicitly
 
@@ -75,22 +42,18 @@ Invalid UTF-8 and UTF-16 are always errors. Binary files are skipped.
 node <skill-dir>/scripts/transcode-text.mjs --input <source> --output <target> --source-encoding auto --target-encoding utf8 --bom none --eol preserve
 ```
 
-Do not overwrite an existing target without `--force`. To modify the source in place, pass `--in-place` and do not pass `--output`. For a comparison-only check, add `--check`.
+Use `--in-place` deliberately, `--check` for comparison, and `--force` only after reviewing an existing target. Writes are atomic.
 
-Read `references/encoding-policy.md` when working with PowerShell, UTF-16, or an existing project policy.
+## Replace bytes without decoding
 
-## Replace ASCII bytes without decoding
-
-If a file fails strict UTF-8 inspection but the required edit is only an ASCII byte sequence, avoid whole-file decoding. Use the byte replacement tool:
+For an ASCII-only edit in a non-UTF-8 or unknown file:
 
 ```text
-node <skill-dir>/scripts/replace-ascii-bytes.mjs --input <source> --output <target> --search old/ascii --replace new/ascii
+node <skill-dir>/scripts/replace-ascii-bytes.mjs --input <source> --in-place --search old --replace new --expect-count 1
 ```
 
-Use `--in-place` only when you intentionally want to modify the source. Use `--search-hex` / `--replace-hex` for explicit byte sequences. Do not use this tool for non-ASCII semantic edits.
+Use hex flags only for explicit raw bytes. Do not use this helper for semantic non-ASCII edits.
 
-## PowerShell 5.1
+For portable Windows PowerShell 5.1 scripts, prefer ASCII-only; document and verify any BOM-based non-ASCII exception. See `references/encoding-policy.md` for the full matrix.
 
-For portable `.ps1` files, prefer ASCII-only UTF-8 without BOM. If a script must contain non-ASCII text and run in Windows PowerShell 5.1, use UTF-8 BOM as an explicitly documented exception. Do not generalize this exception to other files.
-
-After writing, rerun `inspect-text.mjs` on affected files and run the consuming tool.
+After writing, rerun `inspect-text.mjs` and the consuming tool.

@@ -1,102 +1,47 @@
-# Deploying the mechanism
-
-[Russian version](01-DEPLOYMENT.ru.md)
+# Deployment
 
 ## Requirements
 
-- Node.js 18 or newer.
-- The root directory of the target project.
-- The agent entry-file name. `AGENTS.md` is used by default.
+Node.js 18+, a target project root, and an agent entry filename (`AGENTS.md` by default).
 
-## Preview
+## Preview, install, update
 
 ```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --dry-run
+node scripts/deploy.mjs --target <project-root> --dry-run
+node scripts/deploy.mjs --target <project-root>
+node scripts/deploy.mjs --target <project-root> --check
 ```
 
-The command prints a plan and changes nothing.
+Deployment writes `.agent-io-safety/`, inserts/replaces one managed block in the entry file, and records schema-v2 `MANIFEST.json` hashes. Re-running the same command is idempotent.
 
-## Install or update
+Managed files are written through same-directory temporary files and atomic rename. Existing entry-file BOM/EOL are preserved unless `--fix-entry-text` explicitly requests UTF-8 without BOM and LF.
+
+If a managed file changed locally, update/check stops. Review it before using `--force`.
+
+## Profiles and language
 
 ```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md
+node scripts/deploy.mjs --target <project-root> --profile core --lang en
+node scripts/deploy.mjs --target <project-root> --profile core --lang ru
+node scripts/deploy.mjs --target <project-root> --profile full --lang en
 ```
 
-The installer:
+- `core` (default): central rule, selected-language docs, both skills, and runtime helpers;
+- `full`: core plus all examples, hook adapters, and both documentation trees.
 
-1. copies the rule, skills, and version into `<project-root>/.agent-io-safety/`;
-2. creates or replaces the managed block in the entry file;
-3. preserves UTF-8 BOM and line-ending style of an existing entry file;
-4. writes a manifest with SHA-256 hashes of managed files;
-5. does not delete unknown files in the destination directory.
+Localized rules/skills keep canonical installed paths such as `.agent-io-safety/RULE.md` and `.agent-io-safety/skills/.../SKILL.md`.
 
-If a managed copy was edited by hand, an update stops. After reviewing the change, restore the canonical version with:
+## Entry and fragment
 
 ```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --force
+node scripts/deploy.mjs --target <project-root> --entry CLAUDE.md
+node scripts/deploy.mjs --target <project-root> --entry .github/copilot-instructions.md
+node scripts/deploy.mjs --target <project-root> --entry CUSTOM.md --fragment <fragment-file>
 ```
 
-## Entry-file text normalization
+All entry names use the same compact language-specific fragment by default. A custom fragment must contain the managed markers and may use `{{RULE_PATH}}`, `{{RULE_FILE_PATH}}`, and `{{READ_TEXT_PATH}}`.
 
-By default, the installer preserves UTF-8 BOM and line-ending style of an existing entry file.
-
-To explicitly normalize only the entry file to UTF-8 without BOM and LF:
-
-```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --fix-entry-text
-```
-
-This option does not rewrite other project files.
-
-## Language
-
-English is the canonical language:
-
-```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --lang en
-```
-
-Russian localized instructions can be installed with:
-
-```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --lang ru
-```
-
-The destination layout is the same for both languages: the installed rule is still `.agent-io-safety/RULE.md`, and referenced skills keep their canonical paths. The manifest records the selected language.
-
-## Installed helpers
-
-The managed copy includes safe text helpers such as `skills/safe-text-io/scripts/read-text.mjs`, `skills/safe-text-io/scripts/list-paths.mjs`, and `skills/safe-text-io/scripts/inspect-text.mjs`. Use `list-paths.mjs` when terminal output corrupts non-ASCII file names in listings.
-
-## Check an installed copy
-
-```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --check
-```
-
-The exit code is non-zero if the managed snippet is missing, managed files differ, or the installed version/language is out of date.
-
-More detailed diagnostics:
-
-```text
-node scripts/doctor.mjs --target <project-root> --entry AGENTS.md
-```
-
-`doctor` checks Node.js, the entry file, managed markers, `MANIFEST.json`, version, language, SHA-256 hashes, and basic text validity.
-
-Optional external-tool recommendations:
-
-```text
-node scripts/doctor.mjs --target <project-root> --entry AGENTS.md --external
-```
-
-Missing external tools produce warnings, not errors. See `docs/external-tools.md`.
-
-## Managed snippet
-
-Templates live in `snippets/`. The installer replaces `{{RULE_PATH}}` with a relative path from the entry file to the installed rule.
-
-Managed block markers:
+Manual text outside these markers is preserved:
 
 ```text
 <!-- agent-io-safety:begin -->
@@ -104,40 +49,55 @@ Managed block markers:
 <!-- agent-io-safety:end -->
 ```
 
-The block is safe to update by rerunning the installer. Manual text outside the markers is preserved.
+The manifest records the exact rendered block hash. `doctor` detects malformed, duplicated, or modified blocks.
 
-## Other platforms
-
-Pass the desired entry file through `--entry`:
+## Safe uninstall
 
 ```text
-node scripts/deploy.mjs --target <project-root> --entry CLAUDE.md
-node scripts/deploy.mjs --target <project-root> --entry GEMINI.md
-node scripts/deploy.mjs --target <project-root> --entry .github/copilot-instructions.md
+node scripts/deploy.mjs --target <project-root> --uninstall --dry-run
+node scripts/deploy.mjs --target <project-root> --uninstall
 ```
 
-The installer chooses a matching template for `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, and Cursor rule files. A custom fragment can be passed explicitly:
+Uninstall requires a valid manifest. It removes only tracked files and the managed entry block, preserves unknown files, and refuses modified tracked files unless `--force` is explicitly used.
+
+## Doctor
 
 ```text
-node scripts/deploy.mjs --target <project-root> --entry CLAUDE.md --fragment snippets/CLAUDE.md.fragment
+node scripts/doctor.mjs --target <project-root>
+node scripts/doctor.mjs --target <project-root> --lang auto --profile auto
+node scripts/doctor.mjs --target <project-root> --external
+node scripts/doctor.mjs --target <project-root> --external-run
 ```
 
-If the platform supports native skills, `.agent-io-safety/skills/` can also be registered with it. This can improve automatic triggering, but it is not required.
+Doctor verifies Node.js, manifest structure, version/language/profile, exact managed block, managed hashes, and strict text validity.
 
-## Command spec schema
+`--external` is detect-only: it scans project file types and resolves relevant optional tools on `PATH` without executing them. `--external-run` explicitly runs bounded version/module checks. Missing external tools are warnings.
 
-Command specs can use:
+## Distribution
+
+From a tagged GitHub package:
 
 ```text
-schemas/command-spec.schema.json
+npx --yes --package github:Stakkkkk/agent-io-safety-kit#v0.2.0 agent-io-safety-kit --target <project-root>
 ```
 
-Add it through `$schema` so editors can detect structural errors before `run-from-spec.mjs` runs.
+From a downloaded release asset:
 
-## Updating the kit itself
+```text
+npx --yes --package ./agent-io-safety-kit-0.2.0.tgz agent-io-safety-kit --target <project-root>
+```
 
-1. Change the canonical rule, skills, scripts, docs, or snippets.
-2. Run `node tests/run-tests.mjs`.
-3. Run `node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .`.
-4. Update `VERSION` and `CHANGELOG.md` if preparing a release.
-5. Run `--dry-run`, then deploy normally into target projects.
+The public npm registry is not currently the canonical distribution channel. Release assets include a SHA-256 file.
+
+## Maintainer verification
+
+```text
+npm test
+npm run check:text
+npm run check:localization
+npm run check:skills
+npm run check:release
+npm run pack:dry-run
+```
+
+For a tag, run `node scripts/check-release.mjs --tag vX.Y.Z` before pushing it.

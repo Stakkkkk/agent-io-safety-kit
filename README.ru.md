@@ -2,282 +2,158 @@
 
 Языки: [English](README.md) | [Русский](README.ru.md)
 
-Небольшой переносимый комплект правил, skills и Node.js-скриптов, который помогает агентам не ломать данные на кавычках, shell-экранировании, кодировках, BOM и окончаниях строк.
+Dependency-free слой безопасности для coding agents на границах shell, текста, PowerShell, SSH, кодировок и terminal output.
 
-Проект полезен там, где AI-агент регулярно:
+Комплект объединяет компактные правила для агентов, детерминированные Node.js helpers, необязательные lifecycle hooks, проверку целостности deployment и практические рецепты. Он не заменяет проектные/предметные инструкции, а контролирует нижний I/O-слой их выполнения.
 
-- запускает команды с пользовательским текстом, путями с пробелами, кавычками, shell-метасимволами, JSON/YAML/SQL/regex или не-ASCII символами;
-- читает, создаёт или преобразует текстовые файлы;
-- работает в Windows/PowerShell и рискует получить mojibake;
-- теряет время на повторные попытки “подобрать кавычки”.
+## Что предотвращает
 
-## Что внутри
+- повторный подбор shell quoting и случайный повторный parsing команд;
+- ошибочный вывод о повреждении файлов или путей по mojibake;
+- тихое replacement decoding, нежелательные изменения BOM/EOL и опасную перезапись legacy-файлов;
+- inline interpreter one-liners вокруг config, environment, regex, не-ASCII данных или secrets;
+- типовые ошибки PowerShell, SSH, rsync, remote Bash и persistent REPL.
 
-- `RULE.md` — центральная политика безопасного shell и текстового I/O.
-- `skills/safe-shell-io` — инструкция и helpers для точного `argv`, UTF-8 Node runs и remote Bash execution.
-- `skills/safe-text-io` — инструкция и утилиты для безопасного чтения, проверки, преобразования и ASCII-safe byte replacement в текстовых/legacy-файлах.
-- `schemas/command-spec.schema.json` — JSON Schema для command spec.
-- `scripts/deploy.mjs` — идемпотентный установщик в целевой проект.
-- `scripts/doctor.mjs` — диагностика установленной копии.
-- `snippets/` — управляемые фрагменты инструкций для разных агентских entry-файлов.
-- `examples/` — маленькие примеры для копирования.
-- `docs/ru/external-tools.md` — опциональные интеграции со зрелыми линтерами, сканерами и валидаторами.
-- `docs/ru/language-policy.md` — почему ядро остаётся dependency-free Node.js.
-- `docs/ru/localization.md` — как поддерживаются английские canonical-файлы и русская локализация.
-- `docs/ru/project-skills-layering.md` — как использовать kit рядом с существующими project/domain skills.
-- `docs/ru/field-notes.md` — реальные ловушки shell/text/remote I/O, замеченные в работе агентов.
-- `docs/ru/remote-io-recipes.md` — безопасные паттерны для SSH, rsync, here-doc, SFTP и долгих remote-задач.
-- `docs/ru/cursor-hooks.md` — optional enforcement-слой через Cursor Hooks.
-- `docs/ru/codex-hooks.md` — optional enforcement-слой через Codex Hooks.
-- `tests/run-tests.mjs` — самодостаточный тестовый набор без внешних зависимостей.
+## Требования и распространение
 
-Подробное описание механизма: [`00-MECHANISM.ru.md`](00-MECHANISM.ru.md). Инструкция по развёртыванию: [`01-DEPLOYMENT.ru.md`](01-DEPLOYMENT.ru.md).
+- Node.js 18 или новее;
+- runtime npm dependencies отсутствуют.
 
-## Языковая политика
+Пакет распространяется tagged GitHub releases. В каждом release есть source, npm-пакет `.tgz` и его SHA-256. Имя npm указано в metadata, но пакет пока не опубликован в public npm registry, поэтому bare-команда `npx agent-io-safety-kit` сейчас не поддерживается.
 
-Английский — канонический язык файлов проекта, GitHub/npm metadata, правил, skills, snippets, docs и examples. Русский поддерживается как полноценная локализация:
+## Установка из tagged GitHub release
 
-- `README.ru.md`
-- `00-MECHANISM.ru.md`
-- `01-DEPLOYMENT.ru.md`
-- `RULE.ru.md`
-- `skills/**/SKILL.ru.md`
-- `skills/**/references/*.ru.md`
-- `docs/ru/`
-
-Установщик может развернуть любой язык, сохраняя одинаковые целевые пути:
+После публикации `v0.2.0`:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang en
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang ru
+npx --yes --package github:Stakkkkk/agent-io-safety-kit#v0.2.0 agent-io-safety-kit --target /path/to/project
 ```
 
-## Требования
-
-- Node.js 18 или новее.
-- Целевой проект, куда нужно добавить управляемую копию `.agent-io-safety/`.
-
-Внешние npm-зависимости не требуются.
-
-## Быстрый старт
-
-Предварительно посмотреть план установки:
+После скачивания release asset, без сетевого разрешения пакета:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --dry-run
+npx --yes --package ./agent-io-safety-kit-0.2.0.tgz agent-io-safety-kit --target /path/to/project
 ```
 
-Установить или обновить комплект:
+Из клонированного репозитория:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md
+node scripts/deploy.mjs --target /path/to/project
 ```
 
-Установить русскую локализованную инструкцию для агента:
+Сначала можно добавить `--dry-run`. Entry-файл по умолчанию — `AGENTS.md`; для другой платформы передай `--entry`.
+
+## Варианты deployment
+
+Default-профиль `core` устанавливает правило, docs выбранного языка, skills и helpers:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang ru
+node scripts/deploy.mjs --target /path/to/project --profile core --lang en
+node scripts/deploy.mjs --target /path/to/project --profile core --lang ru
 ```
 
-Явно нормализовать entry-файл при развёртывании:
+Профиль `full` дополнительно устанавливает все examples, обе docs-ветки и готовые hook adapters:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --fix-entry-text
+node scripts/deploy.mjs --target /path/to/project --profile full
 ```
 
-Этот флаг удаляет UTF-8 BOM из entry-файла и нормализует окончания строк к LF. Он включается только явно, потому что default-установщик по возможности сохраняет существующие байты entry-файла.
-
-Проверить установленную копию:
+Другие режимы:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --check
-node scripts/doctor.mjs --target /path/to/project --entry AGENTS.md
-node scripts/doctor.mjs --target /path/to/project --entry AGENTS.md --external
+node scripts/deploy.mjs --target /path/to/project --dry-run
+node scripts/deploy.mjs --target /path/to/project --check
+node scripts/deploy.mjs --target /path/to/project --fix-entry-text
+node scripts/deploy.mjs --target /path/to/project --uninstall
 ```
 
-По умолчанию установщик создаёт или обновляет управляемый блок в `AGENTS.md` и копирует комплект в `.agent-io-safety/`.
+`--fix-entry-text` явно убирает UTF-8 BOM и нормализует только entry-файл к LF. `--uninstall` удаляет только manifest-tracked files и managed entry block; при изменённых managed files он останавливается без явно заданного `--force` и сохраняет неизвестные файлы.
+
+Запись выполняется через same-directory temporary files и atomic rename. Manifest хранит hashes, language, profile, version и hash managed entry block.
 
 ## Инструкция для агента
 
-Операционную инструкцию нужно помещать в агентский entry-файл. README может документировать политику, но именно entry-файл агент должен прочитать и выполнить. Главное правило: не подбирать кавычки или кодировки повторными попытками, а после первой проблемы переходить к детерминированному пути.
+Да: рабочая инструкция должна находиться в agent entry-файле, а не только в README. Deployment вставляет компактный managed block: центральное правило загружается только на рискованной границе. Для обычных структурированных чтений и правок через patch/editor оно не требуется.
 
-Минимальный текст для агентского entry-файла в корне проекта:
+Ключевое поведение механическое: после первой ошибки quoting, parsing, encoding или mojibake прекратить перебор вариантов и перейти на детерминированный helper-маршрут.
 
-```md
-## Безопасность shell и текстового I/O
+## Основные helpers
 
-Перед первой операцией, которая использует shell, читает или записывает текст, передаёт пользовательские значения, пути, JSON/YAML/SQL/regex, не-ASCII символы, кодировки, BOM или окончания строк, прочитай и соблюдай `.agent-io-safety/RULE.md`.
-
-Если нужно читать rule или skills через terminal output на Windows/PowerShell, используй `node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs .agent-io-safety/RULE.md` вместо `Get-Content` или inline fixes через `[Console]::OutputEncoding`.
-
-Прочитай указанный skill-файл перед соответствующей операцией:
-
-- `.agent-io-safety/skills/safe-shell-io/SKILL.md` — для сложных команд, пользовательских значений, кавычек, shell-метасимволов, структурированных payload, stdin/stdout или ошибок command-encoding.
-- `.agent-io-safety/skills/safe-text-io/SKILL.md` — для текстовых файлов, UTF-8/UTF-16, BOM, окончаний строк, PowerShell 5.1 или mojibake.
-
-Не исправляй quoting или mojibake повторными пробами. После первой ошибки используй детерминированный script/spec-путь из skill.
-```
-
-Установщик использует более короткие управляемые фрагменты из [`snippets/`](snippets/), чтобы корневая инструкция оставалась компактной.
-
-## Поддерживаемые entry-файлы
-
-Один и тот же механизм можно установить в разные агентские файлы:
+Точный argv из strict JSON spec:
 
 ```sh
-node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md
-node scripts/deploy.mjs --target /path/to/project --entry CLAUDE.md
-node scripts/deploy.mjs --target /path/to/project --entry GEMINI.md
-node scripts/deploy.mjs --target /path/to/project --entry .github/copilot-instructions.md
+node .agent-io-safety/skills/safe-shell-io/scripts/run-from-spec.mjs command.json
 ```
 
-Готовые ручные фрагменты лежат в [`snippets/`](snippets/).
+Strict UTF-8 Node script с данными вне inline PowerShell code:
 
-## Проверки комплекта
+```sh
+node .agent-io-safety/skills/safe-shell-io/scripts/run-node-utf8.mjs --spec node-task.json
+```
+
+Нормализация локального Bash-файла к LF и отправка через SSH:
+
+```sh
+node .agent-io-safety/skills/safe-shell-io/scripts/remote-bash.mjs host script.sh
+```
+
+Чтение текста и листинг не-ASCII путей без PowerShell text cmdlets:
+
+```sh
+node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs -- RULE.md
+node .agent-io-safety/skills/safe-text-io/scripts/read-text.mjs --json -- RULE.md skills/safe-text-io/SKILL.md
+node .agent-io-safety/skills/safe-text-io/scripts/list-paths.mjs --json --recursive --files -- .
+```
+
+Проверка и явное преобразование bytes:
+
+```sh
+node .agent-io-safety/skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf -- .
+node .agent-io-safety/skills/safe-text-io/scripts/transcode-text.mjs --input source --output target --bom none
+node .agent-io-safety/skills/safe-text-io/scripts/replace-ascii-bytes.mjs --input legacy --in-place --search old --replace new --expect-count 1
+```
+
+Execution helpers используют `shell: false`, strict validation, time/output bounds или bounded streaming.
+
+## Hooks
+
+Rules и skills направляют reasoning агента; hooks до выполнения блокируют узкие опасные command shapes. Установи `--profile full`, затем скопируй подходящий example:
+
+```sh
+cp .agent-io-safety/examples/cursor-hooks/hooks.json .cursor/hooks.json
+cp .agent-io-safety/examples/codex-hooks/hooks.json .codex/hooks.json
+```
+
+Перед использованием enforcement прочитай [инструкцию Cursor hooks](docs/ru/cursor-hooks.md) или [инструкцию Codex hooks](docs/ru/codex-hooks.md). Покрытие зависит от host и перехватываемого tool surface.
+
+## Диагностика установки
+
+```sh
+node scripts/doctor.mjs --target /path/to/project
+node scripts/doctor.mjs --target /path/to/project --external
+node scripts/doctor.mjs --target /path/to/project --external-run
+```
+
+`--external` только обнаруживает подходящие optional linters/scanners в `PATH`; `--external-run` явно запускает ограниченные version/module checks. Отсутствующие optional tools дают предупреждения.
+
+## Проверки проекта
 
 ```sh
 npm test
 npm run check:text
+npm run check:localization
+npm run check:skills
+npm run check:release
+npm run pack:dry-run
 ```
 
-То же самое без npm:
+CI запускает Node.js 18/20/22/24 на Linux, Windows и macOS, а также Windows PowerShell 5.1 smoke test.
 
-```sh
-node tests/run-tests.mjs
-node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .
-```
+## Документация
 
-После установки комплекта в целевой проект:
+- [Механизм](00-MECHANISM.ru.md) и [deployment](01-DEPLOYMENT.ru.md)
+- [Практические заметки](docs/ru/field-notes.md) и [remote I/O recipes](docs/ru/remote-io-recipes.md)
+- [Внешние инструменты](docs/ru/external-tools.md) и [слои project skills](docs/ru/project-skills-layering.md)
+- [Security policy](SECURITY.md) и [changelog](CHANGELOG.md)
 
-```sh
-npm run doctor -- --target /path/to/project --entry AGENTS.md
-npm run doctor -- --target /path/to/project --entry AGENTS.md --external
-```
-
-`--external` только сообщает об опциональных сторонних инструментах. Отсутствующие инструменты дают предупреждения, а не ошибки.
-
-## Пример: безопасный запуск команды
-
-Создайте JSON-spec в UTF-8 без BOM:
-
-```json
-{
-  "command": "node",
-  "args": ["script.mjs", "Денис: \"точный аргумент\"", "$5 & 10%"],
-  "cwd": ".",
-  "stdin": "строка 1\nстрока 2\n",
-  "stdoutEncoding": "utf8",
-  "stderrEncoding": "utf8"
-}
-```
-
-Запустите:
-
-```sh
-node skills/safe-shell-io/scripts/run-from-spec.mjs command.json
-```
-
-Runner использует `spawn` с `shell: false` и передаёт каждый аргумент отдельно.
-
-Не читайте, не редактируйте и не преобразуйте config/env/secrets через inline interpreter one-liners вроде `node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c` или `sh -c`. Если команда трогает `.env`, TOML/JSON/YAML config, tokens, `Authorization`, `Bearer`, regex, `$`, вложенные кавычки или non-ASCII значения, используйте native tool/API, script file, `run-from-spec.mjs`, `run-node-utf8.mjs --spec` или `node_repl`, а в вывод печатайте только allowlisted metadata.
-
-Для Node.js задач, где non-ASCII данные проходят через Windows/PowerShell boundary, держите код в script file и передавайте данные через UTF-8 JSON spec:
-
-```sh
-node skills/safe-shell-io/scripts/run-node-utf8.mjs --spec node-task.json
-```
-
-Для Bash, отправляемого из Windows в SSH, нормализуйте LF и стримьте script через stdin:
-
-```sh
-node skills/safe-shell-io/scripts/remote-bash.mjs host script.sh
-```
-
-## Пример: проверка текста
-
-Безопасно прочитать Markdown, JSON, rules или skills через terminal/tool boundary:
-
-```sh
-node skills/safe-text-io/scripts/read-text.mjs RULE.md skills/safe-text-io/SKILL.md
-```
-
-Reader принимает UTF-8 с BOM и без BOM, отклоняет невалидный UTF-8 и UTF-16 BOM, пишет UTF-8 bytes в stdout. Windows-агенты не должны чинить terminal mojibake inline PowerShell encoding-командами вроде `[Console]::OutputEncoding` или `[System.Text.UTF8Encoding]::new($false)`; используйте `read-text.mjs`.
-
-Безопасно получить список путей через terminal/tool boundary, если non-ASCII имена могут отображаться как mojibake:
-
-```sh
-node skills/safe-text-io/scripts/list-paths.mjs --recursive --json docs
-```
-
-Lister использует Node.js filesystem APIs, пишет UTF-8 в stdout, не читает содержимое файлов и не следует directory symlinks/junctions рекурсивно. Используйте его вместо доверия повреждённому выводу `rg --files`, `Get-ChildItem` или `dir`.
-
-```sh
-node skills/safe-text-io/scripts/inspect-text.mjs --fail-on-bom --eol lf README.md
-```
-
-Утилита строго проверяет UTF-8, BOM, окончания строк, подозрительный UTF-16 без BOM и PowerShell 5.1-совместимость для `.ps1/.psd1/.psm1`.
-
-## Пример: ASCII-safe byte replacement
-
-Если файл не является валидным UTF-8, но нужная правка затрагивает только ASCII-байты, не декодируйте файл с replacement characters. Заменяйте сырые ASCII-последовательности:
-
-```sh
-node skills/safe-text-io/scripts/replace-ascii-bytes.mjs --input legacy.sh --in-place --search old/path --replace new/path
-```
-
-Так сохраняются все нецелевые байты. Для не-ASCII изменений нужен явный выбор кодировки, а не эта утилита.
-
-## Гарантии и границы
-
-Комплект помогает сделать хрупкие операции детерминированными:
-
-- точная передача аргументов через `argv`;
-- строгая проверка UTF-8 вместо тихой замены повреждённых символов;
-- явная политика BOM и окончаний строк;
-- безопасное обновление управляемой копии с проверкой SHA-256;
-- symlink-aware запись при развёртывании.
-
-Он не угадывает legacy-кодировки, не лечит mojibake автоматически, не обрабатывает бинарные форматы как текст и не заменяет системные/пользовательские инструкции более высокого приоритета.
-
-## Внешние инструменты
-
-Комплект не пытается заменить зрелые линтеры и сканеры. Он определяет safety-boundary, после чего существующие инструменты могут делать domain-specific анализ. См. [`docs/ru/external-tools.md`](docs/ru/external-tools.md) и [`docs/ru/language-policy.md`](docs/ru/language-policy.md).
-
-## Слои рядом с project skills
-
-Комплект не заменяет проектные или предметные инструкции. Он находится ниже уровнем и отвечает за shell/text I/O границы. См. [`docs/ru/project-skills-layering.md`](docs/ru/project-skills-layering.md).
-
-## Рецепты из практики
-
-См. [`docs/ru/field-notes.md`](docs/ru/field-notes.md), [`docs/ru/remote-io-recipes.md`](docs/ru/remote-io-recipes.md), [`examples/powershell-select-object.md`](examples/powershell-select-object.md), [`examples/powershell-ssh-newlines.md`](examples/powershell-ssh-newlines.md), [`examples/ripgrep-leading-dash.md`](examples/ripgrep-leading-dash.md) и [`examples/remote-script-boundaries.md`](examples/remote-script-boundaries.md): там разобраны mojibake при корректных UTF-8 байтах, PowerShell → Node UTF-8 literals, Windows CRLF в remote Bash, сложные SSH commands, inline interpreter one-liners вокруг config/env/secrets, `ssh -n` vs `rsync -e`, PowerShell/SSH newline escaping, `rg -- "-pattern"`, escape-слои remote here-doc, Paramiko SFTP rename, долгие SSH-задачи, secret redaction и риск плавающих Docker tags.
-
-## Optional hook enforcement
-
-Rules и skills учат агента правильному маршруту. Hooks могут принудительно закрывать самые механические риски вокруг tool calls. См. [`docs/ru/cursor-hooks.md`](docs/ru/cursor-hooks.md) и [`docs/ru/codex-hooks.md`](docs/ru/codex-hooks.md). Готовый пример для Cursor лежит в [`examples/cursor-hooks/`](examples/cursor-hooks/).
-
-## Статус npm
-
-Пакет подготовлен к npm, но репозиторий не публикует его автоматически. Если имя пакета доступно, публикацию можно выполнить вручную после tagged release:
-
-```sh
-npm publish --access public
-```
-
-Полезные локальные команды:
-
-```sh
-npx agent-io-safety-kit --target /path/to/project --entry AGENTS.md --dry-run
-npx safe-shell-run-node-utf8 --spec node-task.json
-npx safe-shell-remote-bash host script.sh
-npx safe-text-list-paths --recursive --json docs
-npx safe-text-read README.md
-npx safe-text-inspect --fail-on-bom --eol lf README.md
-```
-
-## Участие
-
-См. [`CONTRIBUTING.md`](CONTRIBUTING.md). Особенно полезны отчёты о сбоях кодировки и quoting — по возможности прикладывайте точные байты, shell, OS, команду и expected/actual behavior.
-
-## Лицензия
-
-MIT — см. [`LICENSE`](LICENSE).
+Английский — canonical; поддерживаемые русские файлы сохраняют те же target paths через `--lang ru`.

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { atomicWriteFile } from "../../../lib/text.mjs";
 
 function fail(message, code = 2) {
   process.stderr.write(`replace-ascii-bytes: ${message}\n`);
@@ -12,7 +13,7 @@ function usage() {
   process.stderr.write(
     "usage: node replace-ascii-bytes.mjs --input file (--output file|--in-place) " +
       "(--search ascii|--search-hex hex) (--replace ascii|--replace-hex hex) " +
-      "[--count n] [--check] [--force]\n",
+      "[--count n] [--expect-count n] [--check] [--force]\n",
   );
 }
 
@@ -59,11 +60,13 @@ function parseArgs(argv) {
       options.replaceMode = "hex";
       options.replace = requireValue(argv, index, value);
       index += 1;
-    } else if (value === "--count") {
+    } else if (value === "--count" || value === "--expect-count") {
       const rawCount = requireValue(argv, index, value);
-      if (!/^[1-9][0-9]*$/.test(rawCount)) throw new Error("--count must be a positive integer");
-      options.count = Number(rawCount);
-      if (!Number.isSafeInteger(options.count)) throw new Error("--count is too large");
+      if (!/^(0|[1-9][0-9]*)$/.test(rawCount)) throw new Error(`${value} must be a non-negative integer`);
+      const count = Number(rawCount);
+      if (!Number.isSafeInteger(count)) throw new Error(`${value} is too large`);
+      if (value === "--count") options.count = count;
+      else options.expectCount = count;
       index += 1;
     } else if (value === "--check") options.check = true;
     else if (value === "--force") options.force = true;
@@ -76,6 +79,9 @@ function parseArgs(argv) {
   if (!options.inPlace && !options.output) throw new Error("--output or --in-place is required");
   if (!options.searchMode) throw new Error("--search or --search-hex is required");
   if (!options.replaceMode) throw new Error("--replace or --replace-hex is required");
+  if (options.count !== undefined && options.expectCount !== undefined) {
+    throw new Error("--count and --expect-count are mutually exclusive");
+  }
   return options;
 }
 
@@ -142,6 +148,9 @@ try {
   const replacementBytes = buildBytes(options.replace, options.replaceMode, "replacement", { allowEmpty: true });
   const inputBytes = await readFile(inputPath);
   const { outputBytes, replacements } = replaceBytes(inputBytes, searchBytes, replacementBytes, options.count);
+  if (options.expectCount !== undefined && replacements !== options.expectCount) {
+    throw new Error(`expected ${options.expectCount} replacement(s), found ${replacements}; no file was written`);
+  }
 
   const outputExists = await exists(outputPath);
   const currentBytes = outputExists ? await readFile(outputPath) : undefined;
@@ -156,7 +165,7 @@ try {
     if (outputExists && !options.inPlace && !options.force) {
       throw new Error("output exists; pass --force to replace it");
     }
-    await writeFile(outputPath, outputBytes);
+    await atomicWriteFile(outputPath, outputBytes);
     process.stdout.write(`WROTE ${outputPath}: replacements=${replacements}\n`);
   }
 } catch (error) {

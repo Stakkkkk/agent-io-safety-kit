@@ -4,7 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-Nothing yet.
+- Nothing yet.
+
+## 0.2.0 - 2026-07-17
+
+- Added compact `core` and complete `full` deployment profiles; `core` is now the default.
+- Added tracked, conflict-aware `--uninstall` and atomic writes for managed files and helper outputs.
+- Made `doctor` verify exact managed entry blocks, deployment profiles, and schema-v2 manifests; split external checks into detect-only `--external` and explicit execution with `--external-run`.
+- Added shared text, process, deployment, and shell-policy modules to remove duplicated safety logic.
+- Hardened command specs with unknown-field rejection, output/time limits, distinct output targets, strict decoding, and atomic redirected output.
+- Hardened `run-node-utf8.mjs` against invalid script bytes, Markdown-as-script mistakes, inline eval flags, unknown fields, timeouts, and excessive output.
+- Added bounded streaming, timeouts, `--` parsing, missing-script diagnostics, and explicit SSH environment diagnostics to `remote-bash.mjs`.
+- Added a shared shell command policy, a thin Cursor adapter, and a Codex `PreToolUse` adapter; both default to strict deny behavior for review findings.
+- Added `--` path terminators, unambiguous multi-file reads, and exact replacement-count assertions to text helpers.
+- Reduced RULE/SKILL context size and made loading conditional on risky boundaries.
+- Consolidated duplicate entry snippets into one English and one Russian template.
+- Added release-metadata, localization-structure, and dependency-free skill checks, SHA-pinned GitHub Actions, macOS CI, and Windows PowerShell 5.1 smoke coverage.
+- Added Cursor hook blocking for accidental `node *.md` execution and documented persistent JavaScript REPL name collisions.
+- Added field-tested SSH authentication, PowerShell quoting, UTF-8 path, remote script, and secret-output guidance.
 
 ## 0.1.8 - 2026-07-10
 

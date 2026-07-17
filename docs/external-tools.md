@@ -53,6 +53,8 @@ npm test
 npm run check:text
 ```
 
+This command only detects relevant executables on `PATH`; it does not run them. Use `--external-run` only when you explicitly want bounded version/module checks and trust the current `PATH`.
+
 If optional tools are installed, run the relevant ones:
 
 ```sh

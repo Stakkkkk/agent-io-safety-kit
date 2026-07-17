@@ -41,6 +41,20 @@ node skills/safe-shell-io/scripts/remote-bash.mjs host script.sh
 node skills/safe-shell-io/scripts/remote-bash.mjs --print-normalized host script.sh
 ```
 
+Если обычный `ssh host ...` работает, а helper — нет, проверьте, какой SSH executable и environment видит helper:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs --diagnose-ssh host script.sh
+```
+
+На Windows явно передайте тот же OpenSSH executable, config и identity, которые работают интерактивно:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs --ssh "C:\Windows\System32\OpenSSH\ssh.exe" --ssh-arg -F --ssh-arg "C:\Users\me\.ssh\config" --ssh-arg -i --ssh-arg "C:\Users\me\.ssh\id_ed25519" host script.sh
+```
+
+Каждую SSH option передавайте отдельным повтором `--ssh-arg`.
+
 Helper читает script как strict UTF-8, отклоняет UTF-16/invalid UTF-8, преобразует `CRLF`/`CR` в `LF` и отправляет bytes в `ssh host bash -s` без local shell.
 
 ## PowerShell/SSH newline escapes
@@ -55,7 +69,7 @@ ssh host "echo 'line 1'; echo 'line 2'"
 
 Для generated или user-controlled payloads не используйте `echo`. Загружайте файл, передавайте bytes через stdin или отправляйте JSON/Base64 data и декодируйте удалённо.
 
-См. `examples/powershell-ssh-newlines.md`.
+См. `examples/powershell-ssh-newlines.md` в deployment-профиле `full`; этот recipe самодостаточен в `core`.
 
 ## `ssh -n`
 

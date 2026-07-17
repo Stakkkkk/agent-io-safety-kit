@@ -5,92 +5,55 @@ description: Inspect, read, create, edit, validate, and transcode text with expl
 
 # Безопасный текстовый I/O
 
-## Определить политику
+## Политика и маршрут
 
-Выбрать формат в порядке приоритета:
+Выбирай формат по явному требованию пользователя, политике проекта, `.editorconfig`/`.gitattributes`/существующим байтам, затем UTF-8 без BOM и LF для нового текста.
 
-1. явное требование пользователя;
-2. инструкции проекта;
-3. `.editorconfig`, `.gitattributes`, конфигурация инструмента и существующие байты файла;
-4. для нового текста без политики — UTF-8 без BOM и LF.
+Для обычной правки используй структурированный editor/patch. Не угадывай legacy-кодировку, не сохраняй replacement-decoded text и не полагайся на shell/PowerShell text defaults.
 
-Не угадывать legacy-кодировку. Не декодировать с replacement characters и не сохранять результат поверх исходника.
-
-## Выбрать операцию
-
-- Для обычной правки использовать структурированный редактор или patch API.
-- Для чтения Markdown, JSON, rules, skills или другого UTF-8 текста через terminal/tool boundary запускать `scripts/read-text.mjs`.
-- Для листинга путей, когда terminal output может исказить non-ASCII имена, запускать `scripts/list-paths.mjs`.
-- Для диагностики запустить `scripts/inspect-text.mjs`.
-- Для явного преобразования использовать `scripts/transcode-text.mjs`.
-- Для ASCII-only правок в non-UTF-8 или unknown-encoding файлах использовать `scripts/replace-ascii-bytes.mjs`.
-- Для команды, которая генерирует текст, дополнительно применить `safe-shell-io` и указать кодировку stdout.
-
-Не использовать shell redirection, `Set-Content`, `Out-File`, `echo` или неявный `Get-Content`, если их точная байтовая семантика не проверена для текущей версии оболочки.
-
-## Читать текст безопасно
-
-Когда агенту нужно прочитать текст через stdout, особенно на Windows или PowerShell, используйте строгий reader:
+## Безопасное чтение текста
 
 ```text
-node <skill-dir>/scripts/read-text.mjs <path> [<path> ...]
+node <skill-dir>/scripts/read-text.mjs [--] <path>
+node <skill-dir>/scripts/read-text.mjs --json [--] <path> <path> ...
 ```
 
-Он читает bytes напрямую, принимает UTF-8 с BOM и без BOM, отклоняет UTF-16 BOM и невалидный UTF-8, убирает UTF-8 BOM только для вывода и пишет UTF-8 bytes в stdout.
-
-Используйте его для `RULE.md`, `SKILL.md`, Markdown, JSON и других instruction files, когда границей является terminal output. Не чините mojibake через `Get-Content`, `[Console]::OutputEncoding` или inline `powershell -Command` encoding snippets вроде `[System.Text.UTF8Encoding]::new($false)`.
+Reader принимает UTF-8 с BOM и без него, отклоняет UTF-16 BOM и invalid UTF-8. Несколько файлов требуют `--json` или явный `--concat`. Не используй `Get-Content` плюс inline `OutputEncoding` fixes.
 
 ## Безопасный листинг путей
 
-Когда агенту нужен path listing через stdout, особенно на Windows или PowerShell, используйте lister на filesystem API:
-
 ```text
-node <skill-dir>/scripts/list-paths.mjs <path> [<path> ...]
-node <skill-dir>/scripts/list-paths.mjs --recursive --files <path>
-node <skill-dir>/scripts/list-paths.mjs --json --recursive <path>
+node <skill-dir>/scripts/list-paths.mjs --json --recursive --files -- <path>
 ```
 
-Используйте его, если `rg --files`, `Get-ChildItem`, `dir` или другой CLI listing показывает mojibake или `????` для non-ASCII имён. Не делайте вывод о повреждении filesystem по terminal display и не перебирайте code-page fixes. Lister читает имена через Node.js filesystem APIs, пишет UTF-8 в stdout, не читает содержимое файлов и не следует directory symlinks/junctions рекурсивно.
+Используй этот маршрут, когда terminal listing показывает mojibake/non-ASCII `????`. Искажение отображения не доказывает повреждение имён.
 
-## Проверить файлы
-
-Диагностика одного файла или каталога:
+## Проверка
 
 ```text
-node <skill-dir>/scripts/inspect-text.mjs <path> [<path> ...]
+node <skill-dir>/scripts/inspect-text.mjs -- <path> [<path> ...]
 ```
 
-Полезные строгие флаги:
+Полезные flags: `--fail-on-bom`, `--eol lf|crlf`, `--ps51-safe` и `--json`. Invalid UTF-8 и UTF-16 считаются ошибками.
 
-- `--fail-on-bom` — запретить любой BOM;
-- `--eol lf|crlf` — проверить окончания строк;
-- `--ps51-safe` — потребовать ASCII-only либо UTF-8 BOM для PowerShell 5.1;
-- `--json` — вернуть машинно-читаемый отчёт.
-
-Невалидный UTF-8 и UTF-16 всегда возвращают ошибку. Бинарные файлы пропускаются.
-
-## Преобразовать явно
+## Явное транскодирование
 
 ```text
 node <skill-dir>/scripts/transcode-text.mjs --input <source> --output <target> --source-encoding auto --target-encoding utf8 --bom none --eol preserve
 ```
 
-Не перезаписывать существующий target без `--force`. Для изменения исходника на месте передать `--in-place` и не указывать `--output`. Для предварительного сравнения добавить `--check`.
+Используй `--in-place` осознанно, `--check` для сравнения и `--force` только после проверки существующего target. Записи атомарны.
 
-Подробную матрицу читать в `references/encoding-policy.md` при работе с PowerShell, UTF-16 или существующей политикой проекта.
+## Замена байтов без декодирования
 
-## Заменить ASCII-байты без декодирования
-
-Если файл не проходит строгую UTF-8 проверку, но нужная правка — только замена ASCII-последовательности байтов, не декодируйте весь файл. Используйте byte replacement tool:
+Для ASCII-only правки в non-UTF-8 или unknown-файле:
 
 ```text
-node <skill-dir>/scripts/replace-ascii-bytes.mjs --input <source> --output <target> --search old/ascii --replace new/ascii
+node <skill-dir>/scripts/replace-ascii-bytes.mjs --input <source> --in-place --search old --replace new --expect-count 1
 ```
 
-`--in-place` используйте только когда действительно нужно изменить исходник. Для явных байтовых последовательностей есть `--search-hex` / `--replace-hex`. Для смысловых non-ASCII правок эта утилита не подходит.
+Hex flags используй только для явных raw bytes. Helper не подходит для смысловых non-ASCII правок.
 
-## PowerShell 5.1
+Для переносимых Windows PowerShell 5.1 scripts предпочитай ASCII-only; документируй и проверяй BOM-based исключения для не-ASCII. Полная матрица — в `references/encoding-policy.md`.
 
-Для переносимых `.ps1` предпочитать ASCII-only в UTF-8 без BOM. Если скрипт обязан содержать не-ASCII и запускаться Windows PowerShell 5.1, использовать UTF-8 BOM как явно задокументированное исключение. Не переносить это исключение на остальные файлы.
-
-После записи повторно запустить `inspect-text.mjs` на затронутых файлах и выполнить потребляющий их инструмент.
+После записи снова запусти `inspect-text.mjs` и потребляющий инструмент.

@@ -1,100 +1,47 @@
-# Развёртывание механизма
+# Развёртывание
 
 ## Требования
 
-- Node.js 18 или новее.
-- Корневой каталог целевого проекта.
-- Имя стартового файла с инструкциями для агента. По умолчанию используется `AGENTS.md`.
+Node.js 18+, корень target project и имя agent entry-файла (`AGENTS.md` по умолчанию).
 
-## Предварительная проверка
+## Предпросмотр, установка, обновление
 
 ```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --dry-run
+node scripts/deploy.mjs --target <project-root> --dry-run
+node scripts/deploy.mjs --target <project-root>
+node scripts/deploy.mjs --target <project-root> --check
 ```
 
-Команда показывает план, но ничего не меняет.
+Deployment записывает `.agent-io-safety/`, вставляет/заменяет один managed block в entry-файле и сохраняет hashes в schema-v2 `MANIFEST.json`. Повторный запуск той же команды идемпотентен.
 
-## Установка или обновление
+Managed files записываются через same-directory temporary files и atomic rename. BOM/EOL существующего entry-файла сохраняются, если `--fix-entry-text` явно не запрашивает UTF-8 без BOM и LF.
+
+При локальном изменении managed file update/check останавливается. Перед `--force` изменение нужно проверить.
+
+## Профили и язык
 
 ```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md
+node scripts/deploy.mjs --target <project-root> --profile core --lang en
+node scripts/deploy.mjs --target <project-root> --profile core --lang ru
+node scripts/deploy.mjs --target <project-root> --profile full --lang en
 ```
 
-Установщик:
+- `core` (default): центральное правило, docs выбранного языка, оба skills и runtime helpers;
+- `full`: core плюс все examples, hook adapters и обе docs-ветки.
 
-1. копирует правило, skills и версию в `<project-root>/.agent-io-safety/`;
-2. создаёт или заменяет управляемый блок в стартовом файле;
-3. сохраняет UTF-8 BOM и стиль строк существующего стартового файла;
-4. записывает манифест с SHA-256 управляемых файлов;
-5. не удаляет неизвестные файлы в каталоге назначения.
+Localized rules/skills сохраняют canonical installed paths вроде `.agent-io-safety/RULE.md` и `.agent-io-safety/skills/.../SKILL.md`.
 
-Если управляемая копия была изменена вручную, обновление останавливается. После осознанной проверки её можно восстановить канонической версией:
+## Entry и fragment
 
 ```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --force
+node scripts/deploy.mjs --target <project-root> --entry CLAUDE.md
+node scripts/deploy.mjs --target <project-root> --entry .github/copilot-instructions.md
+node scripts/deploy.mjs --target <project-root> --entry CUSTOM.md --fragment <fragment-file>
 ```
 
-## Нормализация текста entry-файла
+Все имена entry по умолчанию используют один компактный language-specific fragment. Custom fragment должен содержать managed markers и может использовать `{{RULE_PATH}}`, `{{RULE_FILE_PATH}}` и `{{READ_TEXT_PATH}}`.
 
-По умолчанию установщик сохраняет UTF-8 BOM и стиль окончаний строк существующего entry-файла.
-
-Чтобы явно нормализовать только entry-файл к UTF-8 без BOM и LF:
-
-```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --fix-entry-text
-```
-
-Этот флаг не переписывает другие файлы проекта.
-
-## Язык
-
-Английский — канонический язык:
-
-```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --lang en
-```
-
-Русскую локализованную инструкцию можно установить так:
-
-```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --lang ru
-```
-
-Структура в целевом проекте одинакова для обоих языков: установленное правило остаётся `.agent-io-safety/RULE.md`, а skills сохраняют канонические пути. Выбранный язык фиксируется в manifest.
-
-## Установленные helpers
-
-Managed copy включает safe text helpers вроде `skills/safe-text-io/scripts/read-text.mjs`, `skills/safe-text-io/scripts/list-paths.mjs` и `skills/safe-text-io/scripts/inspect-text.mjs`. Используйте `list-paths.mjs`, когда terminal output искажает non-ASCII имена файлов в листингах.
-
-## Проверка установленной копии
-
-```text
-node scripts/deploy.mjs --target <project-root> --entry AGENTS.md --check
-```
-
-Код возврата ненулевой, если отсутствует врезка, отличаются управляемые файлы или версия/язык устарели.
-
-Более подробная диагностика:
-
-```text
-node scripts/doctor.mjs --target <project-root> --entry AGENTS.md
-```
-
-`doctor` проверяет Node.js, наличие entry-файла, управляемые маркеры, `MANIFEST.json`, версию, язык, SHA-256 управляемых файлов и базовую текстовую валидность установленной копии.
-
-Для необязательных внешних инструментов:
-
-```text
-node scripts/doctor.mjs --target <project-root> --entry AGENTS.md --external
-```
-
-Отсутствующие внешние инструменты дают предупреждения, но не ошибку. Политика и список рекомендаций описаны в `docs/external-tools.md`.
-
-## Врезка
-
-Шаблон находится в `snippets/AGENTS.md.fragment`. Установщик заменяет `{{RULE_PATH}}` относительным путём от стартового файла к развёрнутому правилу.
-
-Границы блока:
+Ручной текст вне markers сохраняется:
 
 ```text
 <!-- agent-io-safety:begin -->
@@ -102,40 +49,55 @@ node scripts/doctor.mjs --target <project-root> --entry AGENTS.md --external
 <!-- agent-io-safety:end -->
 ```
 
-Блок можно безопасно обновлять повторным запуском установщика. Ручной текст вне этих маркеров сохраняется.
+Manifest хранит hash точного rendered block. `doctor` обнаруживает malformed, duplicated или modified blocks.
 
-## Другие платформы
-
-Передать нужный стартовый файл через `--entry`:
+## Безопасное удаление
 
 ```text
-node scripts/deploy.mjs --target <project-root> --entry CLAUDE.md
-node scripts/deploy.mjs --target <project-root> --entry GEMINI.md
-node scripts/deploy.mjs --target <project-root> --entry .github/copilot-instructions.md
+node scripts/deploy.mjs --target <project-root> --uninstall --dry-run
+node scripts/deploy.mjs --target <project-root> --uninstall
 ```
 
-Установщик выбирает подходящий шаблон из `snippets/` для `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` и Cursor rule-файлов. При необходимости можно явно передать фрагмент:
+Uninstall требует valid manifest. Он удаляет только tracked files и managed entry block, сохраняет неизвестные файлы и отказывается удалять изменённые tracked files без явно заданного `--force`.
+
+## Doctor
 
 ```text
-node scripts/deploy.mjs --target <project-root> --entry CLAUDE.md --fragment snippets/CLAUDE.md.fragment
+node scripts/doctor.mjs --target <project-root>
+node scripts/doctor.mjs --target <project-root> --lang auto --profile auto
+node scripts/doctor.mjs --target <project-root> --external
+node scripts/doctor.mjs --target <project-root> --external-run
 ```
 
-Если платформа поддерживает нативные skills, каталог `.agent-io-safety/skills/` можно дополнительно подключить к её реестру. Это ускоряет автоматический trigger, но не является условием работы механизма.
+Doctor проверяет Node.js, структуру manifest, version/language/profile, точный managed block, managed hashes и strict text validity.
 
-## Command spec schema
+`--external` работает в detect-only режиме: сканирует типы project files и разрешает подходящие optional tools в `PATH`, не запуская их. `--external-run` явно выполняет bounded version/module checks. Отсутствующие external tools дают предупреждения.
 
-Для command spec доступна JSON Schema:
+## Распространение
+
+Из tagged GitHub package:
 
 ```text
-schemas/command-spec.schema.json
+npx --yes --package github:Stakkkkk/agent-io-safety-kit#v0.2.0 agent-io-safety-kit --target <project-root>
 ```
 
-Её можно подключить в spec через поле `$schema`, чтобы редактор подсвечивал ошибки структуры до запуска `run-from-spec.mjs`.
+Из скачанного release asset:
 
-## Обновление самого комплекта
+```text
+npx --yes --package ./agent-io-safety-kit-0.2.0.tgz agent-io-safety-kit --target <project-root>
+```
 
-1. Изменить канонические правило, skills или скрипты.
-2. Запустить `node tests/run-tests.mjs`.
-3. Запустить `node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .`.
-4. Увеличить `VERSION` и обновить `CHANGELOG.md`, если готовится релиз.
-5. Выполнить `--dry-run`, затем обычное развёртывание в нужных проектах.
+Public npm registry пока не является canonical distribution channel. Release assets включают SHA-256 файл.
+
+## Проверка для maintainer
+
+```text
+npm test
+npm run check:text
+npm run check:localization
+npm run check:skills
+npm run check:release
+npm run pack:dry-run
+```
+
+Перед push tag запусти `node scripts/check-release.mjs --tag vX.Y.Z`.

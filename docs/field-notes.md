@@ -29,6 +29,14 @@ node skills/safe-text-io/scripts/read-text.mjs path/to/file.md
 
 These are high-risk boundaries because data crosses PowerShell, Node.js, SSH, remote shell, and terminal rendering.
 
+### Markdown instructions are not scripts
+
+`RULE.md`, `SKILL.md`, `README.md`, and docs are text inputs. If you accidentally run `node SKILL.md`, Node will parse Markdown as JavaScript and fail with a misleading syntax error. Read instruction files through:
+
+```sh
+node skills/safe-text-io/scripts/read-text.mjs path/to/SKILL.md
+```
+
 ### PowerShell to Node stdin can corrupt non-ASCII literals
 
 If an inline Node.js script is passed through PowerShell stdin, Cyrillic paths or string literals can arrive as `????`.
@@ -69,6 +77,12 @@ For complex remote snippets, send a script through stdin/file/spec instead of a 
 `node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c`, `sh -c`, and similar one-liners are easy to underestimate. If they read config/env/secrets, parse structured files, perform redaction, or contain regex, `$`, nested quotes, pipes, or non-ASCII data, treat them as unsafe.
 
 Use a native tool/API, a real script file, `run-from-spec.mjs`, `run-node-utf8.mjs --spec`, or `node_repl`. For secrets, print only allowlisted metadata such as section names, URL hosts, counts, booleans, and auth presence flags; never inline-redact raw values in a shell command.
+
+### Persistent REPL name collisions
+
+Some Node.js/JavaScript REPL tools keep top-level bindings alive across calls. A later probe can fail on `Identifier has already been declared` if it reuses `const i`, `const result`, or another earlier name.
+
+For scratch REPL work, use `var` for intentionally reusable names or pick fresh descriptive names per check. For anything repeatable or user-visible, move the code into a script/spec so every run starts from a known scope.
 
 ### Bash `set -u` expands `$...` inside double quotes
 
@@ -125,7 +139,15 @@ If PowerShell builds an SSH command string that contains `\n`, that sequence may
 
 Do not depend on `\n` escaping across PowerShell → SSH → remote shell. For tiny fixed text, use repeated fixed `echo` commands. For real payloads, upload a file, stream stdin, or pass JSON/Base64 data.
 
-See `examples/powershell-ssh-newlines.md`.
+See `examples/powershell-ssh-newlines.md` in a `full` deployment; the rule above is self-contained in `core`.
+
+## `remote-bash.mjs` needs an existing local script file
+
+`remote-bash.mjs <host> <script>` is for sending a local UTF-8 Bash script through `ssh host bash -s`. If the script path is a temporary file, create and verify that file first.
+
+For a tiny fixed remote check, a direct fixed `ssh host command` can be clearer than creating a temporary script just to call `remote-bash.mjs`.
+
+If an interactive SSH alias works but `remote-bash.mjs` fails, do not assume the alias, config, identity, or agent environment is identical. Run with `--diagnose-ssh`, then pass the intended OpenSSH executable, config, and identity explicitly with `--ssh` and repeated `--ssh-arg`.
 
 ## Paramiko SFTP rename may not overwrite
 
@@ -158,7 +180,7 @@ or:
 Select-Object -Skip 94 -First 19
 ```
 
-See `examples/powershell-select-object.md`.
+See `examples/powershell-select-object.md` in a `full` deployment; the rule above is self-contained in `core`.
 
 ## `rg` patterns starting with `-` need `--`
 
@@ -169,7 +191,7 @@ rg -- "-TODO"
 rg --fixed-strings -- "-literal-user-text"
 ```
 
-See `examples/ripgrep-leading-dash.md`.
+See `examples/ripgrep-leading-dash.md` in a `full` deployment; the rule above is self-contained in `core`.
 
 ## Long SSH/rsync operations should survive client disconnects
 

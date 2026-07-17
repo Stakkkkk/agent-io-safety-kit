@@ -1,8 +1,9 @@
 {
   "name": "agent-io-safety-kit",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "description": "Portable rules, skills, and scripts for safer agent shell and text I/O.",
   "license": "MIT",
+  "author": "Denis Andronov <stak2008man@gmail.com>",
   "type": "module",
   "keywords": [
     "ai-agents",
@@ -24,8 +25,11 @@
     "url": "git+https://github.com/Stakkkkk/agent-io-safety-kit.git"
   },
   "scripts": {
-    "test": "node tests/run-tests.mjs",
+    "test": "node --test --test-concurrency=1 tests/deployment.test.mjs tests/hooks-metadata.test.mjs tests/runners.test.mjs tests/stabilization.test.mjs tests/text.test.mjs",
     "check:text": "node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .",
+    "check:localization": "node scripts/check-localization.mjs",
+    "check:skills": "node scripts/check-skills.mjs",
+    "check:release": "node scripts/check-release.mjs",
     "doctor": "node scripts/doctor.mjs",
     "pack:dry-run": "npm pack --dry-run",
     "release:notes": "node scripts/release-notes.mjs"
@@ -60,6 +64,7 @@
     "VERSION",
     "docs/",
     "examples/",
+    "lib/",
     "recipes/",
     "schemas/",
     "scripts/",

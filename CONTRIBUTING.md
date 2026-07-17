@@ -11,12 +11,16 @@ Run before opening a pull request:
 ```sh
 npm test
 npm run check:text
+npm run check:localization
+npm run check:skills
+npm run check:release
+npm run pack:dry-run
 ```
 
-Without npm:
+Without npm, invoke the same explicit Node test files:
 
 ```sh
-node tests/run-tests.mjs
+node --test --test-concurrency=1 tests/deployment.test.mjs tests/hooks-metadata.test.mjs tests/runners.test.mjs tests/stabilization.test.mjs tests/text.test.mjs
 node skills/safe-text-io/scripts/inspect-text.mjs --all-files --fail-on-bom --eol lf --ps51-safe .
 ```
 
@@ -66,8 +70,9 @@ For quoting or encoding bugs, please include:
 
 ## Release checklist
 
-1. Update code, docs, examples, and tests.
-2. Run `npm test` and `npm run check:text`.
-3. Update `VERSION`.
-4. Update `CHANGELOG.md`.
-5. Create and push a tag such as `v0.1.1`.
+1. Update code, docs, examples, tests, and both maintained language variants.
+2. Run all commands in **Local checks**.
+3. Update `VERSION`, `package.json`, and a dated `CHANGELOG.md` section to the same semantic version.
+4. Run `node scripts/check-release.mjs --tag vX.Y.Z`.
+5. Commit before creating the annotated `vX.Y.Z` tag; never move an already published tag.
+6. Push the commit and tag. The release workflow builds notes from the matching changelog section and uploads the `.tgz` plus SHA-256 asset.

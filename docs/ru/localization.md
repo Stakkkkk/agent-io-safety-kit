@@ -29,3 +29,5 @@ node scripts/deploy.mjs --target /path/to/project --entry AGENTS.md --lang ru
 ## Правило для contribution
 
 Если меняются канонические инструкции, по возможности обновляйте русскую локализацию в том же pull request. Если это невозможно, явно укажите, какая локализация осталась не обновлена.
+
+Запустите `npm run check:localization` для проверки обязательных пар, уровней headings, code fences и canonical skill frontmatter. `npm run check:skills` проверяет имена skills и ограничения frontmatter без внешних Python/YAML dependencies.

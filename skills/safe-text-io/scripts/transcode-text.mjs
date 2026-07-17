@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { atomicWriteFile } from "../../../lib/text.mjs";
 
 function fail(message, code = 2) {
   process.stderr.write(`transcode-text: ${message}\n`);
@@ -117,6 +118,7 @@ try {
   }
   const inputPath = path.resolve(options.input);
   const outputPath = options.inPlace ? inputPath : path.resolve(options.output);
+  if (!options.inPlace && inputPath === outputPath) throw new Error("use --in-place to modify the input file");
   const inputBytes = await readFile(inputPath);
   const detected = detectBom(inputBytes);
   const sourceEncoding = options.sourceEncoding === "auto" ? (detected.encoding ?? "utf8") : options.sourceEncoding;
@@ -143,7 +145,7 @@ try {
     if (outputExists && !options.inPlace && !options.force) {
       throw new Error("output exists; pass --force to replace it");
     }
-    await writeFile(outputPath, outputBytes);
+    await atomicWriteFile(outputPath, outputBytes);
     process.stdout.write(`WROTE ${outputPath}: encoding=${options.targetEncoding} bom=${addBom ? "yes" : "no"} eol=${options.eol}\n`);
   }
 } catch (error) {

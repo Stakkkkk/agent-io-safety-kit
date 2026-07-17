@@ -29,3 +29,5 @@ The deployed paths stay canonical (`RULE.md`, `skills/.../SKILL.md`) so agents d
 ## Contribution rule
 
 When changing canonical instructions, update the Russian localization in the same pull request whenever practical. If that is not possible, mention the missing localization update explicitly in the PR.
+
+Run `npm run check:localization` to verify required pairs, heading levels, code fences, and canonical skill frontmatter. Run `npm run check:skills` to verify skill names and frontmatter constraints without external Python/YAML dependencies.

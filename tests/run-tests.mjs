@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { appendFile, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -59,7 +58,7 @@ function expectFailure(result, label) {
   assert.notEqual(result.code, 0, `${label}: command unexpectedly succeeded`);
 }
 
-async function testDeployment(tempRoot) {
+export async function testDeployment(tempRoot) {
   const target = path.join(tempRoot, "project with spaces");
   await mkdir(target, { recursive: true });
   const entryPath = path.join(target, "AGENTS.md");
@@ -77,6 +76,8 @@ async function testDeployment(tempRoot) {
   assert.equal(firstText.replaceAll("\r\n", "").includes("\n"), false, "entry EOL was not preserved");
   const firstManifest = JSON.parse(await readFile(path.join(target, ".agent-io-safety", "MANIFEST.json"), "utf8"));
   assert.equal(firstManifest.language, "en", "default deployment language changed");
+  assert.equal(firstManifest.profile, "core", "default deployment profile changed");
+  assert.equal(firstManifest.schemaVersion, 2);
   assert.match(await readFile(path.join(target, ".agent-io-safety", "RULE.md"), "utf8"), /Safe shell and text I\/O rule/);
   assert.match(
     await readFile(path.join(target, ".agent-io-safety", "docs", "field-notes.md"), "utf8"),
@@ -88,21 +89,19 @@ async function testDeployment(tempRoot) {
     /Remote I\/O recipes/,
     "remote I/O recipes were not deployed",
   );
-  assert.match(
-    await readFile(path.join(target, ".agent-io-safety", "examples", "powershell-select-object.md"), "utf8"),
-    /Select-Object/,
-    "PowerShell example was not deployed",
-  );
-  assert.match(
-    await readFile(path.join(target, ".agent-io-safety", "examples", "powershell-ssh-newlines.md"), "utf8"),
-    /PowerShell \+ SSH newline/,
-    "PowerShell SSH newline example was not deployed",
-  );
+  await assert.rejects(readFile(path.join(target, ".agent-io-safety", "examples", "powershell-select-object.md")));
   assert.match(
     await readFile(path.join(target, ".agent-io-safety", "skills", "safe-text-io", "scripts", "read-text.mjs"), "utf8"),
-    /decodeUtf8Strict/,
+    /decodeUtf8Text/,
     "safe text reader was not deployed",
   );
+  const installedRead = await run(
+    path.join(target, ".agent-io-safety", "skills", "safe-text-io", "scripts", "read-text.mjs"),
+    ["--", path.join(target, ".agent-io-safety", "RULE.md")],
+    { cwd: target },
+  );
+  expectSuccess(installedRead, "installed safe text reader");
+  assert.match(installedRead.stdout, /Safe shell and text I\/O rule/);
   assert.match(
     await readFile(path.join(target, ".agent-io-safety", "skills", "safe-text-io", "scripts", "list-paths.mjs"), "utf8"),
     /list-paths/,
@@ -119,20 +118,17 @@ async function testDeployment(tempRoot) {
     "remote Bash helper was not deployed",
   );
   assert.match(
-    await readFile(path.join(target, ".agent-io-safety", "examples", "ripgrep-leading-dash.md"), "utf8"),
-    /rg --/,
-    "ripgrep leading dash example was not deployed",
-  );
-  assert.match(
     await readFile(path.join(target, ".agent-io-safety", "docs", "cursor-hooks.md"), "utf8"),
     /Cursor hooks integration/,
     "Cursor hooks docs were not deployed",
   );
-  assert.match(
-    await readFile(path.join(target, ".agent-io-safety", "examples", "cursor-hooks", "hooks.json"), "utf8"),
-    /beforeShellExecution/,
-    "Cursor hook config was not deployed",
-  );
+  const fullTarget = path.join(tempRoot, "full-project");
+  await mkdir(fullTarget, { recursive: true });
+  expectSuccess(await run(deployScript, ["--target", fullTarget, "--profile", "full"]), "full deployment");
+  assert.match(await readFile(path.join(fullTarget, ".agent-io-safety", "examples", "powershell-select-object.md"), "utf8"), /Select-Object/);
+  assert.match(await readFile(path.join(fullTarget, ".agent-io-safety", "examples", "cursor-hooks", "hooks.json"), "utf8"), /beforeShellExecution/);
+  assert.match(await readFile(path.join(fullTarget, ".agent-io-safety", "examples", "codex-hooks", "hooks.json"), "utf8"), /PreToolUse/);
+  expectSuccess(await run(doctorScript, ["--target", fullTarget, "--profile", "full"]), "full doctor");
 
   const beforeSecond = digest(await readFile(entryPath));
   const second = await run(deployScript, ["--target", target, "--entry", "AGENTS.md"]);
@@ -270,9 +266,17 @@ async function testDeployment(tempRoot) {
     /node "\.agent io safety\/skills\/safe-text-io\/scripts\/read-text\.mjs" "\.agent io safety\/RULE\.md"/,
     "custom destination read-text command was not quoted or rendered",
   );
+
+  await appendFile(rulePath, "local uninstall drift\n", "utf8");
+  const refusedUninstall = await run(deployScript, ["--target", target, "--uninstall"]);
+  expectFailure(refusedUninstall, "uninstall drift protection");
+  assert.equal(await readFile(customPath, "utf8"), "unmanaged\n");
+  expectSuccess(await run(deployScript, ["--target", target, "--uninstall", "--force"]), "forced uninstall");
+  assert.equal(await readFile(customPath, "utf8"), "unmanaged\n", "uninstall removed unknown file");
+  assert.doesNotMatch(await readFile(entryPath, "utf8"), /agent-io-safety:begin/);
 }
 
-async function testRunner(tempRoot) {
+export async function testRunner(tempRoot) {
   const runnerRoot = path.join(tempRoot, "runner");
   await mkdir(runnerRoot, { recursive: true });
   const echoScript = path.join(runnerRoot, "echo.mjs");
@@ -319,7 +323,7 @@ async function testRunner(tempRoot) {
   assert.deepEqual(examplePayload.args.slice(0, 2), ["path with spaces/file.txt", "double quote: \""]);
 }
 
-async function testShellHelpers(tempRoot) {
+export async function testShellHelpers(tempRoot) {
   const helperRoot = path.join(tempRoot, "helpers");
   await mkdir(helperRoot, { recursive: true });
 
@@ -369,14 +373,42 @@ async function testShellHelpers(tempRoot) {
     stdin: "sed -n '1,260p'\ngrep 'map $http_authorization'\n",
   });
 
+  const diagnosed = await run(remoteBashScript, [
+    "--diagnose-ssh",
+    "--print-normalized",
+    "--ssh", process.execPath,
+    "--ssh-arg", fakeSsh,
+    "example.org",
+    remoteScript,
+  ]);
+  expectSuccess(diagnosed, "remote-bash SSH diagnostic");
+  assert.match(diagnosed.stderr, /remote-bash ssh diagnostic/);
+  assert.match(diagnosed.stderr, /resolved ssh:/);
+  assert.match(diagnosed.stderr, /extra ssh args: 1/);
+  assert.match(diagnosed.stderr, /--ssh and repeated --ssh-arg/);
+
+  const fakeFailingSsh = path.join(helperRoot, "fake-failing-ssh.mjs");
+  await writeFile(fakeFailingSsh, "process.stderr.write('Permission denied (publickey).\\n'); process.exit(255);\n", "utf8");
+  const remoteFailure = await run(remoteBashScript, ["--ssh", process.execPath, "--ssh-arg", fakeFailingSsh, "example.org", remoteScript]);
+  expectFailure(remoteFailure, "remote-bash SSH failure diagnostic");
+  assert.match(remoteFailure.stderr, /Permission denied/);
+  assert.match(remoteFailure.stderr, /used .+node\.exe/);
+  assert.match(remoteFailure.stderr, /--diagnose-ssh/);
+
   const utf16Script = path.join(helperRoot, "utf16.sh");
   await writeFile(utf16Script, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("echo nope\n", "utf16le")]));
   const remoteUtf16 = await run(remoteBashScript, ["--print-normalized", "example.org", utf16Script]);
   expectFailure(remoteUtf16, "remote-bash rejects UTF-16");
-  assert.match(remoteUtf16.stderr, /UTF-16 BOM/);
+  assert.match(remoteUtf16.stderr, /UTF-16/);
+
+  const missingRemoteScript = await run(remoteBashScript, ["--print-normalized", "example.org", path.join(helperRoot, "missing.sh")]);
+  expectFailure(missingRemoteScript, "remote-bash missing script path");
+  assert.match(missingRemoteScript.stderr, /script file does not exist/);
+  assert.match(missingRemoteScript.stderr, /create a local UTF-8 Bash script first/i);
+  assert.doesNotMatch(missingRemoteScript.stderr, /ENOENT/);
 }
 
-async function testTextTools(tempRoot) {
+export async function testTextTools(tempRoot) {
   const textRoot = path.join(tempRoot, "text");
   await mkdir(textRoot, { recursive: true });
   const good = path.join(textRoot, "good.txt");
@@ -405,21 +437,21 @@ async function testTextTools(tempRoot) {
   expectSuccess(readBom, "safe text read UTF-8 BOM");
   assert.equal(readBom.stdout, "Привет\r\n");
 
-  const readMany = await run(readTextScript, [good, bom]);
+  const readMany = await run(readTextScript, ["--concat", good, bom]);
   expectSuccess(readMany, "safe text read multiple files");
   assert.equal(readMany.stdout, "Привет\nПривет\r\n");
 
   const readInvalid = await run(readTextScript, [invalidUtf8]);
   expectFailure(readInvalid, "safe text read invalid UTF-8");
-  assert.match(readInvalid.stderr, /invalid UTF-8/);
+  assert.match(readInvalid.stderr, /not valid UTF-8/);
 
-  const readPartialInvalid = await run(readTextScript, [good, invalidUtf8]);
+  const readPartialInvalid = await run(readTextScript, ["--concat", good, invalidUtf8]);
   expectFailure(readPartialInvalid, "safe text read does not emit partial output");
   assert.equal(readPartialInvalid.stdout, "");
 
   const readUtf16 = await run(readTextScript, [utf16]);
   expectFailure(readUtf16, "safe text read UTF-16 BOM");
-  assert.match(readUtf16.stderr, /UTF-16 BOM/);
+  assert.match(readUtf16.stderr, /UTF-16/);
 
   expectSuccess(await run(inspectScript, [good]), "valid UTF-8 inspection");
   expectFailure(await run(inspectScript, ["--fail-on-bom", bom]), "BOM policy");
@@ -505,7 +537,7 @@ async function testTextTools(tempRoot) {
   );
 }
 
-async function testPathLister(tempRoot) {
+export async function testPathLister(tempRoot) {
   const pathsRoot = path.join(tempRoot, "paths");
   const nestedDir = path.join(pathsRoot, "Каталог с пробелом");
   await mkdir(nestedDir, { recursive: true });
@@ -578,7 +610,7 @@ async function testPathLister(tempRoot) {
   assert.match(missing.stderr, /list-paths:/);
 }
 
-async function testSnippetCompactness() {
+export async function testSnippetCompactness() {
   const snippetRoots = [path.join(packageRoot, "snippets"), path.join(packageRoot, "snippets", "ru")];
   const fragmentPaths = [];
 
@@ -589,10 +621,10 @@ async function testSnippetCompactness() {
     }
   }
 
-  assert.ok(fragmentPaths.length >= 10, "expected managed entry fragments");
+  assert.equal(fragmentPaths.length, 2, "entry fragments should be consolidated by language");
   for (const fragmentPath of fragmentPaths) {
     const bytes = await readFile(fragmentPath);
-    assert.ok(bytes.length <= 1024, `${path.relative(packageRoot, fragmentPath)} exceeds 1024 UTF-8 bytes`);
+    assert.ok(bytes.length <= 1536, `${path.relative(packageRoot, fragmentPath)} exceeds 1536 UTF-8 bytes`);
     const text = bytes.toString("utf8");
     assert.equal((text.match(/agent-io-safety:begin/g) ?? []).length, 1, "fragment begin marker count changed");
     assert.equal((text.match(/agent-io-safety:end/g) ?? []).length, 1, "fragment end marker count changed");
@@ -600,7 +632,7 @@ async function testSnippetCompactness() {
   }
 }
 
-async function testCliHelp() {
+export async function testCliHelp() {
   expectSuccess(await run(deployScript, ["--help"]), "deploy help");
   expectSuccess(await run(doctorScript, ["--help"]), "doctor help");
   expectSuccess(await run(releaseNotesScript, ["--help"]), "release notes help");
@@ -614,13 +646,13 @@ async function testCliHelp() {
   expectSuccess(await run(transcodeScript, ["--help"]), "transcode help");
 }
 
-async function testMetadata() {
+export async function testMetadata() {
   const schema = JSON.parse(await readFile(schemaPath, "utf8"));
   assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
   assert.equal(schema.properties.command.type, "string");
 
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
-  assert.equal(packageJson.version, "0.1.8");
+  assert.equal(packageJson.version, "0.2.0");
   assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
   assert.equal(packageJson.bin["safe-shell-remote-bash"], "skills/safe-shell-io/scripts/remote-bash.mjs");
@@ -632,12 +664,13 @@ async function testMetadata() {
   assert.ok(packageJson.files.includes("examples/"));
   assert.ok(packageJson.files.includes("docs/"));
   assert.ok(packageJson.files.includes("recipes/"));
+  assert.ok(packageJson.files.includes("lib/"));
   assert.ok(packageJson.files.includes("RULE.ru.md"));
   assert.ok(packageJson.files.includes("00-MECHANISM.ru.md"));
   assert.ok(packageJson.files.includes("01-DEPLOYMENT.ru.md"));
 }
 
-async function testReleaseNotes() {
+export async function testReleaseNotes() {
   const notes = await run(releaseNotesScript, ["v0.1.8"]);
   expectSuccess(notes, "release notes extraction");
   assert.match(notes.stdout, /list-paths\.mjs/);
@@ -645,7 +678,7 @@ async function testReleaseNotes() {
   assert.doesNotMatch(notes.stdout, /0\.1\.7/);
 }
 
-async function testCursorHookExample() {
+export async function testCursorHookExample() {
   const rsync = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
     stdin: `${JSON.stringify({ command: 'rsync -e "ssh -n" src/ host:/tmp/src/', cwd: packageRoot, sandbox: false })}\n`,
   });
@@ -656,7 +689,7 @@ async function testCursorHookExample() {
     stdin: `${JSON.stringify({ command: 'ssh host "printf line1\\nline2"', cwd: packageRoot, sandbox: false })}\n`,
   });
   expectSuccess(newline, "Cursor hook PowerShell SSH newline");
-  assert.equal(JSON.parse(newline.stdout).permission, "ask");
+  assert.equal(JSON.parse(newline.stdout).permission, "deny");
 
   const range = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
     stdin: `${JSON.stringify({ command: "Get-Content file.txt | Select-Object -Index 94..112", cwd: packageRoot, sandbox: false })}\n`,
@@ -668,13 +701,13 @@ async function testCursorHookExample() {
     stdin: `${JSON.stringify({ command: 'rg "-TODO"', cwd: packageRoot, sandbox: false })}\n`,
   });
   expectSuccess(rgDash, "Cursor hook ripgrep leading dash");
-  assert.equal(JSON.parse(rgDash.stdout).permission, "ask");
+  assert.equal(JSON.parse(rgDash.stdout).permission, "deny");
 
   const rgExeDash = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
     stdin: `${JSON.stringify({ command: 'rg.exe -n "-TODO"', cwd: packageRoot, sandbox: false })}\n`,
   });
   expectSuccess(rgExeDash, "Cursor hook rg.exe leading dash");
-  assert.equal(JSON.parse(rgExeDash.stdout).permission, "ask");
+  assert.equal(JSON.parse(rgExeDash.stdout).permission, "deny");
 
   const rgSafe = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
     stdin: `${JSON.stringify({ command: 'rg -n -- "-TODO"', cwd: packageRoot, sandbox: false })}\n`,
@@ -686,7 +719,7 @@ async function testCursorHookExample() {
     stdin: `${JSON.stringify({ command: 'set -u; grep "map $http_authorization" nginx.conf', cwd: packageRoot, sandbox: false })}\n`,
   });
   expectSuccess(nounset, "Cursor hook Bash nounset dollar in double quotes");
-  assert.equal(JSON.parse(nounset.stdout).permission, "ask");
+  assert.equal(JSON.parse(nounset.stdout).permission, "deny");
 
   const inlineSecretCommand = `node -e "const fs=require('fs'); const text=fs.readFileSync('config.toml','utf8'); console.log(text.replace(/Bearer .+/, 'Bearer <redacted>'))"`;
   const inlineSecret = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
@@ -706,19 +739,27 @@ async function testCursorHookExample() {
     stdin: `${JSON.stringify({ command: inlineComplexCommand, cwd: packageRoot, sandbox: false })}\n`,
   });
   expectSuccess(inlineComplex, "Cursor hook complex inline interpreter");
-  assert.equal(JSON.parse(inlineComplex.stdout).permission, "ask");
+  assert.equal(JSON.parse(inlineComplex.stdout).permission, "deny");
 
   const inlinePowerShellEncoding = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
     stdin: `${JSON.stringify({ command: 'powershell -Command "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); Get-Content RULE.md"', cwd: packageRoot, sandbox: false })}\n`,
   });
   expectSuccess(inlinePowerShellEncoding, "Cursor hook inline PowerShell encoding command");
-  assert.equal(JSON.parse(inlinePowerShellEncoding.stdout).permission, "ask");
+  assert.equal(JSON.parse(inlinePowerShellEncoding.stdout).permission, "deny");
 
   const inlineBashLoginShell = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
     stdin: `${JSON.stringify({ command: 'bash -lc "grep -E \\"token|Authorization\\" config.yaml"', cwd: packageRoot, sandbox: false })}\n`,
   });
   expectSuccess(inlineBashLoginShell, "Cursor hook inline Bash login shell");
   assert.equal(JSON.parse(inlineBashLoginShell.stdout).permission, "deny");
+
+  const nodeMarkdown = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: "node .agent-io-safety/skills/safe-shell-io/SKILL.md", cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(nodeMarkdown, "Cursor hook node Markdown script");
+  const nodeMarkdownDecision = JSON.parse(nodeMarkdown.stdout);
+  assert.equal(nodeMarkdownDecision.permission, "deny");
+  assert.match(nodeMarkdownDecision.agent_message, /read-text\.mjs/);
 
   const safe = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
     stdin: `${JSON.stringify({ command: "node --version", cwd: packageRoot, sandbox: false })}\n`,
@@ -727,30 +768,7 @@ async function testCursorHookExample() {
   assert.equal(JSON.parse(safe.stdout).permission, "allow");
 }
 
-async function safeCleanup(tempRoot) {
-  const systemTemp = path.resolve(os.tmpdir());
-  const resolved = path.resolve(tempRoot);
-  const relative = path.relative(systemTemp, resolved);
-  assert.ok(relative && !relative.startsWith("..") && !path.isAbsolute(relative), "refusing unsafe temp cleanup");
-  assert.match(path.basename(resolved), /^agent-io-safety-tests-/, "refusing unexpected temp cleanup target");
-  await rm(resolved, { recursive: true, force: true });
-}
-
-const tempRoot = await mkdtemp(path.join(os.tmpdir(), "agent-io-safety-tests-"));
-try {
+export async function testBundleTextPolicy() {
   const bundleCheck = await run(inspectScript, ["--all-files", "--fail-on-bom", "--eol", "lf", "--ps51-safe", packageRoot]);
   expectSuccess(bundleCheck, "bundle text policy");
-  await testCliHelp();
-  await testMetadata();
-  await testReleaseNotes();
-  await testCursorHookExample();
-  await testDeployment(tempRoot);
-  await testRunner(tempRoot);
-  await testShellHelpers(tempRoot);
-  await testTextTools(tempRoot);
-  await testPathLister(tempRoot);
-  await testSnippetCompactness();
-  process.stdout.write("ALL TESTS PASSED\n");
-} finally {
-  await safeCleanup(tempRoot);
 }

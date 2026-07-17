@@ -2,62 +2,61 @@
 
 [Russian version](ru/codex-hooks.md)
 
-Codex hooks are the enforcement counterpart to this kit's rules and skills. Use them when guidance is not enough and you want checks around tool calls.
+Codex hooks add mechanical enforcement around the kit's advisory rules and skills. Project hooks load only for trusted projects.
 
-Official docs: <https://developers.openai.com/codex/hooks>
+Official documentation: <https://developers.openai.com/codex/hooks>
 
-## When to use Codex hooks
+## Install
 
-Use hooks for mechanical boundaries:
+Deploy the `full` profile, then copy the example:
 
-- `PreToolUse` for `Bash` before shell commands run;
-- `PermissionRequest` for approval-sensitive operations;
-- `PostToolUse` for shell output review or edited-file accounting;
-- `Stop` for final quality gates.
+```text
+node scripts/deploy.mjs --target <project-root> --profile full
+mkdir -p <project-root>/.codex
+cp <project-root>/.agent-io-safety/examples/codex-hooks/hooks.json <project-root>/.codex/hooks.json
+```
 
-Keep `AGENTS.md`, `RULE.md`, and skills for the reasoning workflow. Put only narrow, deterministic checks in hooks.
+The example invokes:
 
-## Recommended policy
+```text
+node .agent-io-safety/examples/codex-hooks/io-safety-hook.mjs --mode strict
+```
 
-Start with these checks:
+## Adapter contract
 
-- deny `rsync -e "ssh -n ..."` because rsync needs the SSH stdin/stdout channel;
-- ask or deny SSH commands containing literal `\n` escapes, especially from PowerShell;
-- deny PowerShell `Select-Object -Index 94..112`; require `-Index (94..112)` or `-Skip/-First`;
-- deny inline interpreter one-liners around config/env/secrets; require a native tool/API, a script file, `run-from-spec.mjs`, `run-node-utf8.mjs --spec`, or `node_repl`, and allowlisted output;
-- ask on complex inline interpreter one-liners such as `node -e`, `python -c`, `powershell -Command`, `cmd /c`, `bash -c`, or `sh -c` with `$`, regex, pipes, nested quotes, or redaction logic;
-- ask on `rg "-pattern"` before `--`; require `rg -- "-pattern"` or `rg --fixed-strings -- "-literal"` for literal user text;
-- ask on Bash `set -u` / `set -o nounset` with `$...` inside double quotes; require single quotes, fixed-string search, or a script file for config text;
-- after text-file edits, run `skills/safe-text-io/scripts/inspect-text.mjs` where the hook payload provides enough file context.
-
-## Configuration template
-
-Codex hook configuration lives in `.codex/hooks.json` or inline `[hooks]` tables in `.codex/config.toml`.
-
-The exact command payload shape can vary by Codex surface and tool. Treat the following as a starting template, then verify it with `/hooks` and a local dry run before relying on it:
+The `PreToolUse` adapter reads `tool_name` and `tool_input.command`, calls the shared `shell-policy.mjs`, and returns the documented Codex deny shape:
 
 ```json
 {
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .agent-io-safety/examples/cursor-hooks/io-safety-hook.mjs --event beforeShellExecution",
-            "timeout": 30,
-            "statusMessage": "Checking shell I/O safety"
-          }
-        ]
-      }
-    ]
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "reason and deterministic remediation"
   }
 }
 ```
 
-If your Codex installation passes a different JSON shape than Cursor's `beforeShellExecution`, keep the policy logic but adapt the payload parser. Do not silently fail closed until you have verified the hook input and trust flow in your environment.
+Codex currently parses an `ask` decision but does not support it. Therefore `--mode strict` maps both policy `deny` and `review` findings to `deny`. Optional `--mode context` maps review findings to `additionalContext` and should not be treated as enforcement.
 
-## Distribution note
+Hook process failures can allow the tool call to continue, so malformed input is converted into a valid deny response instead of a non-zero process exit.
 
-Codex hooks are Codex-specific. This project keeps them as an optional integration rather than a required installer step so the core kit remains portable across agents.
+## Coverage
+
+The shared policy catches mechanical shapes such as:
+
+- Markdown passed to Node instead of `read-text.mjs`;
+- inline interpreters around config/env/secrets;
+- complex inline interpreter quoting;
+- `rsync -e` with `ssh -n`;
+- unparenthesized PowerShell `Select-Object -Index` ranges;
+- SSH command strings containing literal `\n`;
+- ripgrep leading-dash patterns without `--`;
+- Bash nounset with config-like `$...` text in double quotes.
+
+The parser only treats an interpreter token as executable at a command-segment boundary, so prose such as `echo node -e` is not blocked.
+
+## Boundary
+
+Hook interception is not complete for every Codex surface or newer unified execution path. Verify installation with `/hooks` and test the actual shell tool used in your environment. Keep the compact entry rule and skills active even when hooks are enabled.
+
+Hooks do not inspect semantics, authorize downloads, or safely redact secrets. They route obvious unsafe shapes to deterministic script/spec helpers.

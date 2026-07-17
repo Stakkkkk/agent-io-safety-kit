@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agent-io-safety/examples/codex-hooks/io-safety-hook.mjs --mode strict",
+            "timeout": 15,
+            "statusMessage": "Checking shell I/O safety"
+          }
+        ]
+      }
+    ]
+  }
+}
