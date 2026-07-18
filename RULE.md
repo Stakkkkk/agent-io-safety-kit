@@ -20,7 +20,8 @@ Routine structured reads and patch/editor operations with no shell or encoding b
 6. If CLI filename output shows mojibake, verify paths with `safe-text-io/scripts/list-paths.mjs`; display corruption is not proof that filesystem bytes are damaged.
 7. Put `--` before user-controlled positional arguments that may start with `-`; for ripgrep use `rg -- "-pattern"` or `rg --fixed-strings -- "-literal"`.
 8. Do not pass complex SSH commands, scripts, pipes, regex, `$`, or newline escapes through layered quoting. Use a script/file/spec; for Windows-to-Bash use `safe-shell-io/scripts/remote-bash.mjs`.
-9. After the first quoting, parsing, encoding, or mojibake failure, stop trying variants and switch to the deterministic helper route.
+9. Before Docker/storage changes that may need elevated ownership or mode changes, finish a read-only privilege and UID/GID preflight before `docker compose down`, moving data, or recreating bind-mount paths. If non-interactive privilege is unavailable, stop before changing state.
+10. After the first quoting, parsing, encoding, or mojibake failure, stop trying variants and switch to the deterministic helper route.
 
 ## Text policy
 

@@ -84,11 +84,10 @@ export async function testDeployment(tempRoot) {
     /real I\/O traps/,
     "field notes were not deployed",
   );
-  assert.match(
-    await readFile(path.join(target, ".agent-io-safety", "docs", "remote-io-recipes.md"), "utf8"),
-    /Remote I\/O recipes/,
-    "remote I/O recipes were not deployed",
-  );
+  const deployedRemoteRecipes = await readFile(path.join(target, ".agent-io-safety", "docs", "remote-io-recipes.md"), "utf8");
+  assert.match(deployedRemoteRecipes, /Remote I\/O recipes/, "remote I/O recipes were not deployed");
+  assert.match(deployedRemoteRecipes, /Docker inspect Go templates/, "remote Docker template route was not deployed");
+  assert.match(deployedRemoteRecipes, /Preflight before Docker bind-mount changes/, "Docker bind-mount preflight was not deployed");
   await assert.rejects(readFile(path.join(target, ".agent-io-safety", "examples", "powershell-select-object.md")));
   assert.match(
     await readFile(path.join(target, ".agent-io-safety", "skills", "safe-text-io", "scripts", "read-text.mjs"), "utf8"),
@@ -126,6 +125,8 @@ export async function testDeployment(tempRoot) {
   await mkdir(fullTarget, { recursive: true });
   expectSuccess(await run(deployScript, ["--target", fullTarget, "--profile", "full"]), "full deployment");
   assert.match(await readFile(path.join(fullTarget, ".agent-io-safety", "examples", "powershell-select-object.md"), "utf8"), /Select-Object/);
+  assert.match(await readFile(path.join(fullTarget, ".agent-io-safety", "examples", "docker-remote-inspect.sh"), "utf8"), /docker inspect --format/);
+  assert.match(await readFile(path.join(fullTarget, ".agent-io-safety", "examples", "docker-bind-mount-preflight.sh"), "utf8"), /READY: read-only preflight passed/);
   assert.match(await readFile(path.join(fullTarget, ".agent-io-safety", "examples", "cursor-hooks", "hooks.json"), "utf8"), /beforeShellExecution/);
   assert.match(await readFile(path.join(fullTarget, ".agent-io-safety", "examples", "codex-hooks", "hooks.json"), "utf8"), /PreToolUse/);
   expectSuccess(await run(doctorScript, ["--target", fullTarget, "--profile", "full"]), "full doctor");
@@ -652,7 +653,7 @@ export async function testMetadata() {
   assert.equal(schema.properties.command.type, "string");
 
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
-  assert.equal(packageJson.version, "0.2.0");
+  assert.equal(packageJson.version, "0.2.1");
   assert.equal(packageJson.bin["agent-io-safety-kit"], "scripts/deploy.mjs");
   assert.equal(packageJson.bin["agent-io-safety-doctor"], "scripts/doctor.mjs");
   assert.equal(packageJson.bin["safe-shell-remote-bash"], "skills/safe-shell-io/scripts/remote-bash.mjs");
@@ -760,6 +761,28 @@ export async function testCursorHookExample() {
   const nodeMarkdownDecision = JSON.parse(nodeMarkdown.stdout);
   assert.equal(nodeMarkdownDecision.permission, "deny");
   assert.match(nodeMarkdownDecision.agent_message, /read-text\.mjs/);
+
+  const remoteDockerTemplate = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: `ssh host "docker inspect --format '{{json .Config.Labels}}' neo4j"`, cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(remoteDockerTemplate, "Cursor hook remote Docker template");
+  const remoteDockerDecision = JSON.parse(remoteDockerTemplate.stdout);
+  assert.equal(remoteDockerDecision.permission, "deny");
+  assert.match(remoteDockerDecision.agent_message, /remote-bash\.mjs/);
+
+  const localDockerTemplate = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: `docker inspect --format '{{.Config.User}}' neo4j`, cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(localDockerTemplate, "Cursor hook local Docker template");
+  assert.equal(JSON.parse(localDockerTemplate.stdout).permission, "allow");
+
+  const unpreflightedMigration = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
+    stdin: `${JSON.stringify({ command: "docker compose down && mv data data.backup && sudo chown -R 7474:7474 data", cwd: packageRoot, sandbox: false })}\n`,
+  });
+  expectSuccess(unpreflightedMigration, "Cursor hook Docker bind-mount migration");
+  const migrationDecision = JSON.parse(unpreflightedMigration.stdout);
+  assert.equal(migrationDecision.permission, "deny");
+  assert.match(migrationDecision.agent_message, /preflight/);
 
   const safe = await run(cursorHookScript, ["--event", "beforeShellExecution"], {
     stdin: `${JSON.stringify({ command: "node --version", cwd: packageRoot, sandbox: false })}\n`,

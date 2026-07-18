@@ -61,6 +61,10 @@ It verifies the local file, normalizes CRLF/CR to LF, streams bounded output, an
 
 Never use `ssh -n` inside `rsync -e`. Local argv arrays do not remove the remote shell boundary. For long jobs, use remote supervision, logs, and polling.
 
+Treat Docker Go templates as complex remote syntax. Do not put `docker inspect --format '{{...}}'` inside an inline PowerShell/SSH command; keep the template in a reviewed local Bash file and send it with `remote-bash.mjs`.
+
+Before stopping containers for bind-mount ownership or directory changes, complete a separate read-only preflight: verify the effective container UID/GID, inspect current host ownership/modes, and prove non-interactive root/sudo availability. Do not begin `down`, backup/move, `mkdir`, `chown`, or `chmod` until every check passes. If privilege is unavailable, stop and ask the user/admin. See the Docker sections in `../../docs/remote-io-recipes.md` and the preflight example in a `full` deployment.
+
 Read `../../docs/field-notes.md` and `../../docs/remote-io-recipes.md` only for relevant remote/PowerShell cases.
 
 ## Verify

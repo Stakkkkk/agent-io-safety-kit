@@ -23,16 +23,16 @@ Dependency-free слой безопасности для coding agents на гр
 
 ## Установка из tagged GitHub release
 
-После публикации `v0.2.0`:
+Для текущего release `v0.2.1`:
 
 ```sh
-npx --yes --package github:Stakkkkk/agent-io-safety-kit#v0.2.0 agent-io-safety-kit --target /path/to/project
+npx --yes --package github:Stakkkkk/agent-io-safety-kit#v0.2.1 agent-io-safety-kit --target /path/to/project
 ```
 
 После скачивания release asset, без сетевого разрешения пакета:
 
 ```sh
-npx --yes --package ./agent-io-safety-kit-0.2.0.tgz agent-io-safety-kit --target /path/to/project
+npx --yes --package ./agent-io-safety-kit-0.2.1.tgz agent-io-safety-kit --target /path/to/project
 ```
 
 Из клонированного репозитория:

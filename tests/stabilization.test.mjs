@@ -147,7 +147,7 @@ test("shared hook policy avoids prose false positives and Codex fails closed", a
 test("release metadata rejects a mismatched tag", async () => {
   const result = await run(script("scripts", "check-release.mjs"), ["--tag", "v9.9.9"]);
   assert.notEqual(result.code, 0);
-  assert.match(result.stderr, /tag=v9\.9\.9, VERSION=0\.2\.0/);
+  assert.match(result.stderr, /tag=v9\.9\.9, VERSION=0\.2\.1/);
 });
 
 test("doctor rejects duplicated or altered managed entry blocks", () => withTemp(async (temp) => {

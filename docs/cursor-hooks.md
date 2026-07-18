@@ -29,7 +29,9 @@ The policy catches:
 - unparenthesized PowerShell `Select-Object -Index` ranges;
 - SSH strings containing literal `\n`;
 - ripgrep leading-dash patterns without `--`;
-- Bash nounset with config-like `$...` text in double quotes.
+- Bash nounset with config-like `$...` text in double quotes;
+- Docker Go templates embedded in inline SSH commands;
+- commands that combine `docker compose down` with ownership/directory mutations instead of a separate preflight.
 
 Detection is segment-aware: text such as `echo node -e is documentation` is allowed because Node is not the executable in that command segment.
 

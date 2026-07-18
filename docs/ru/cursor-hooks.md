@@ -29,7 +29,9 @@ Policy ловит:
 - PowerShell range без скобок в `Select-Object -Index`;
 - SSH strings с literal `\n`;
 - leading-dash patterns ripgrep без `--`;
-- Bash nounset с config-like `$...` текстом в double quotes.
+- Bash nounset с config-like `$...` текстом в double quotes;
+- Docker Go templates внутри inline SSH commands;
+- команды, объединяющие `docker compose down` с ownership/directory mutations вместо отдельного preflight.
 
 Detection учитывает command segments: текст вроде `echo node -e is documentation` разрешается, потому что Node не является executable этого segment.
 

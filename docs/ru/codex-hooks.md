@@ -51,7 +51,9 @@ node .agent-io-safety/examples/codex-hooks/io-safety-hook.mjs --mode strict
 - PowerShell range без скобок в `Select-Object -Index`;
 - SSH command strings с literal `\n`;
 - leading-dash patterns ripgrep без `--`;
-- Bash nounset с config-like `$...` текстом в double quotes.
+- Bash nounset с config-like `$...` текстом в double quotes;
+- Docker Go templates внутри inline SSH commands;
+- команды, объединяющие `docker compose down` с ownership/directory mutations вместо отдельного preflight.
 
 Parser считает interpreter executable только на границе command segment, поэтому prose вроде `echo node -e` не блокируется.
 

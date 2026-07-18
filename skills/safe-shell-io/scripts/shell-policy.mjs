@@ -122,6 +122,23 @@ function hasRgDashPattern(command) {
   return false;
 }
 
+function hasRemoteDockerTemplate(command) {
+  for (const segment of segments(command)) {
+    if (executableBaseName(segment[0]?.value ?? "") !== "ssh") continue;
+    const remote = segment.slice(1).map((token) => token.value).join(" ");
+    const inspect = /\bdocker(?:\s+container)?\s+inspect\b/iu.test(remote);
+    const format = /(?:^|\s)(?:-f|--format)(?:=|\s)/iu.test(remote);
+    if (inspect && format && remote.includes("{{") && remote.includes("}}")) return true;
+  }
+  return false;
+}
+
+function hasDockerDownWithFilesystemMutation(command) {
+  const down = /\bdocker(?:\.exe)?\s+compose\b[^\r\n]*\bdown\b/iu.test(command);
+  const mutation = /(?:^|[\s;&|])(?:sudo\s+)?(?:chown|chmod|mv|mkdir)(?:\s|$)/iu.test(command);
+  return down && mutation;
+}
+
 function finding(decision, code, reason, remediation) {
   return { decision, code, reason, remediation };
 }
@@ -137,6 +154,12 @@ export function evaluateShellCommand(value) {
   }
   if (hasNodeMarkdown(command)) {
     return finding("deny", "node-markdown", "Markdown is text, not a Node.js script.", "Read it with safe-text-io/scripts/read-text.mjs.");
+  }
+  if (hasRemoteDockerTemplate(command)) {
+    return finding("deny", "remote-docker-template", "Docker Go templates are not safe inside layered PowerShell/SSH quoting.", "Put docker inspect --format in a reviewed UTF-8 Bash file and run it with remote-bash.mjs.");
+  }
+  if (hasDockerDownWithFilesystemMutation(command)) {
+    return finding("review", "docker-bind-mount-preflight", "Container shutdown and filesystem ownership/directory mutations are combined without a separately verifiable privilege preflight.", "First run a read-only sudo, container UID/GID, and host stat preflight; only then run the state-changing phase separately.");
   }
 
   const inline = inlineSegments(command);

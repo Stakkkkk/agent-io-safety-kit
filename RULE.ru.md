@@ -20,7 +20,8 @@
 6. Если CLI-листинг показывает mojibake в именах файлов, проверь пути через `safe-text-io/scripts/list-paths.mjs`; искажение отображения не доказывает повреждение байтов filesystem.
 7. Ставь `--` перед пользовательскими позиционными аргументами, которые могут начинаться с `-`; для ripgrep используй `rg -- "-pattern"` или `rg --fixed-strings -- "-literal"`.
 8. Не передавай сложные SSH-команды, scripts, pipes, regex, `$` или newline escapes через много слоёв quoting. Используй script/file/spec; для Windows-to-Bash — `safe-shell-io/scripts/remote-bash.mjs`.
-9. После первой ошибки quoting, parsing, encoding или mojibake прекрати перебор вариантов и перейди на детерминированный helper-маршрут.
+9. Перед Docker/storage изменениями, которым могут понадобиться повышенные права для ownership или mode, полностью выполни read-only preflight прав и UID/GID до `docker compose down`, переноса данных или пересоздания bind-mount путей. Если non-interactive privilege недоступен, остановись до изменения состояния.
+10. После первой ошибки quoting, parsing, encoding или mojibake прекрати перебор вариантов и перейди на детерминированный helper-маршрут.
 
 ## Политика текста
 

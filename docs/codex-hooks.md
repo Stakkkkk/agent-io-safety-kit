@@ -51,7 +51,9 @@ The shared policy catches mechanical shapes such as:
 - unparenthesized PowerShell `Select-Object -Index` ranges;
 - SSH command strings containing literal `\n`;
 - ripgrep leading-dash patterns without `--`;
-- Bash nounset with config-like `$...` text in double quotes.
+- Bash nounset with config-like `$...` text in double quotes;
+- Docker Go templates embedded in inline SSH commands;
+- commands that combine `docker compose down` with ownership/directory mutations instead of a separate preflight.
 
 The parser only treats an interpreter token as executable at a command-segment boundary, so prose such as `echo node -e` is not blocked.
 

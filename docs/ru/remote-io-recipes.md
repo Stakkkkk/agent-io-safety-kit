@@ -57,6 +57,39 @@ node skills/safe-shell-io/scripts/remote-bash.mjs --ssh "C:\Windows\System32\Ope
 
 Helper читает script как strict UTF-8, отклоняет UTF-16/invalid UTF-8, преобразует `CRLF`/`CR` в `LF` и отправляет bytes в `ssh host bash -s` без local shell.
 
+## Docker inspect Go templates через PowerShell и SSH
+
+Значение Docker `--format` — это Go template с фигурными скобками, кавычками, variables и function calls. Docker отдельно документирует shell-specific quoting для таких templates: <https://docs.docker.com/engine/cli/formatting/>. Добавление PowerShell и remote shell делает такую inline-команду недетерминированной:
+
+```powershell
+ssh host "docker inspect -f '{{...}}' container"
+```
+
+После `template parsing error: unterminated quoted string` не перебирайте варианты кавычек. Поместите команду в локальный strict UTF-8/LF Bash-файл. В deployment-профиле `full` файл `examples/docker-remote-inspect.sh` показывает secret-minimizing проверку: печатает configured user, ключи labels и имена environment variables, но не значения environment:
+
+```sh
+node skills/safe-shell-io/scripts/remote-bash.mjs --print-normalized host examples/docker-remote-inspect.sh
+node skills/safe-shell-io/scripts/remote-bash.mjs host examples/docker-remote-inspect.sh
+```
+
+Перед запуском измените fixed container name в проверенном script. Не интерполируйте недоверенное имя контейнера или template в SSH command.
+
+## Preflight перед изменением Docker bind mounts
+
+Bind mounts напрямую открывают контейнерам host paths и позволяют менять данные host filesystem; Docker документирует эту границу здесь: <https://docs.docker.com/engine/storage/bind-mounts/>. Разделяйте ownership/mode migration на две фазы.
+
+Фаза 1 — read-only; она должна завершиться до `docker compose down`:
+
+1. Проверьте, что текущий account — root либо успешно выполняется `sudo -n true`. Interactive sudo недопустим для unattended agent operation.
+2. Пока контейнер работает, получите effective UID/GID через `docker exec <container> id -u` и `id -g`; не полагайтесь на общий default продукта вроде `7474:7474` без проверки реального image/container.
+3. Выполните `stat -c 'uid=%u gid=%g mode=%a path=%n' -- <path>` для каждого существующего bind source и parent каждого пути, который предстоит создать.
+4. Подтвердите совпадение planned UID/GID с running process и определите все пути, которым нужны `chown`/`chmod`.
+5. Для restricted sudoers, read-only filesystem, NFS root-squash и похожих границ организуйте согласованный disposable ownership probe на той же filesystem. Одного `sudo -n true` недостаточно, чтобы доказать, что конкретная filesystem принимает `chown`.
+
+`examples/docker-bind-mount-preflight.sh` реализует non-mutating проверки с fixed reviewed values. Запустите его локально на Docker host или отправьте через `remote-bash.mjs`. В нём нет `down`, move, создания каталогов, смены ownership или mode.
+
+Только после вывода `READY` фаза 2 может остановить контейнеры, создать backups, пересоздать paths, изменить ownership/modes и запустить stack. Rollback paths и verification держите в отдельном state-changing script. Если preflight не доказывает privilege или identity, остановитесь до изменения состояния и обратитесь к пользователю/админу.
+
 ## PowerShell/SSH newline escapes
 
 Не передавайте переводы строк как `\n` через PowerShell → SSH → remote shell quoting. В зависимости от слоёв remote side может увидеть literal backslash-n, реальный перевод строки не в том месте или output вида `n...n`.

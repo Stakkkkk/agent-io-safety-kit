@@ -35,10 +35,12 @@ node skills/safe-text-io/scripts/inspect-text.mjs examples/safe-shell-command.js
 - `powershell-select-object.md` shows safe range syntax for `Select-Object -Index`.
 - `ripgrep-leading-dash.md` shows why `rg -- "-pattern"` is required when a pattern starts with `-`.
 - `remote-script-boundaries.md` shows why multi-level here-doc strings are fragile.
+- `docker-remote-inspect.sh` keeps Docker Go templates inside a reviewed remote Bash script and prints only secret-minimizing metadata.
+- `docker-bind-mount-preflight.sh` checks non-interactive privilege, effective container UID/GID, and bind-source ownership before any state-changing migration step.
 
 ## Hook examples
 
-`cursor-hooks/` contains a dependency-free Cursor `beforeShellExecution` hook example. It blocks `rsync -e "ssh -n ..."`, blocks bare PowerShell ranges, and asks for review when SSH commands contain literal `\n` newline escapes, obvious `rg "-pattern"` searches without `--`, or Bash nounset commands with `$...` inside double quotes.
+`cursor-hooks/` contains a dependency-free Cursor `beforeShellExecution` hook example. It blocks `rsync -e "ssh -n ..."`, bare PowerShell ranges, and remote inline Docker Go templates. It asks for review when SSH commands contain literal `\n` newline escapes, obvious `rg "-pattern"` searches without `--`, Bash nounset commands with `$...` inside double quotes, or one command combines `docker compose down` with ownership/directory mutations.
 
 ## Agent instruction snippets
 

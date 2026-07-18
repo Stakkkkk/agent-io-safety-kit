@@ -61,6 +61,10 @@ Helper проверяет локальный файл, нормализует CR
 
 Не используй `ssh -n` внутри `rsync -e`. Локальный argv array не устраняет remote shell boundary. Долгие задачи запускай под remote supervision с логом и polling.
 
+Считай Docker Go templates сложным remote syntax. Не помещай `docker inspect --format '{{...}}'` в inline PowerShell/SSH command; храни template в проверенном локальном Bash-файле и отправляй через `remote-bash.mjs`.
+
+Перед остановкой контейнеров ради изменения ownership или каталогов bind mount выполни отдельный read-only preflight: проверь эффективные UID/GID контейнера, текущие ownership/modes на host и доступность non-interactive root/sudo. Не начинай `down`, backup/move, `mkdir`, `chown` или `chmod`, пока не пройдены все проверки. Если privilege недоступен, остановись и обратись к пользователю/админу. См. Docker-разделы в `../../docs/ru/remote-io-recipes.md` и preflight example в deployment-профиле `full`.
+
 `../../docs/ru/field-notes.md` и `../../docs/ru/remote-io-recipes.md` читай только для подходящих remote/PowerShell кейсов.
 
 ## Проверка

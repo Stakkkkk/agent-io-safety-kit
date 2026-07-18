@@ -23,16 +23,16 @@ The package is distributed by tagged GitHub releases. Each release contains sour
 
 ## Install from a tagged GitHub release
 
-After `v0.2.0` is published:
+For the current `v0.2.1` release:
 
 ```sh
-npx --yes --package github:Stakkkkk/agent-io-safety-kit#v0.2.0 agent-io-safety-kit --target /path/to/project
+npx --yes --package github:Stakkkkk/agent-io-safety-kit#v0.2.1 agent-io-safety-kit --target /path/to/project
 ```
 
 To avoid network resolution after downloading the release asset:
 
 ```sh
-npx --yes --package ./agent-io-safety-kit-0.2.0.tgz agent-io-safety-kit --target /path/to/project
+npx --yes --package ./agent-io-safety-kit-0.2.1.tgz agent-io-safety-kit --target /path/to/project
 ```
 
 From a cloned repository:

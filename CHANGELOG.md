@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 - Nothing yet.
 
+## 0.2.1 - 2026-07-18
+
+- Added a deterministic PowerShell/SSH route for remote `docker inspect` Go templates, including a secret-minimizing example and hook enforcement.
+- Added a read-only Docker bind-mount privilege/UID/GID preflight recipe and example that must run before container shutdown or filesystem mutation.
+- Fixed the remote Bash diagnostic test to accept the actual Node.js executable path on Linux, macOS, and Windows.
+
 ## 0.2.0 - 2026-07-17
 
 - Added compact `core` and complete `full` deployment profiles; `core` is now the default.
